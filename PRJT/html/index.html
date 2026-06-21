@@ -82,10 +82,22 @@
             const fileInputRef = useRef(null);
 
             const [showLedger, setShowLedger] = useState(false);
+            const [activeView, setActiveView] = useState('dashboard'); // 'dashboard' or 'tax-filing'
+            const [filings, setFilings] = useState([]);
+            const [filingStep, setFilingStep] = useState(1); // 1: Verify, 2: Info & Calculate, 3: Completed
+            const [filingForm, setFilingForm] = useState({
+                period: '2026년 1기 부가가치세',
+                businessName: '세복상회',
+                businessRegNo: '123-45-67890',
+                representative: '김대표',
+            });
+            const [isFiling, setIsFiling] = useState(false);
+            const [lastFilingResult, setLastFilingResult] = useState(null);
 
             useEffect(() => {
                 fetchDashboardData();
                 fetchTransactions();
+                fetchFilings();
             }, []);
 
             const fetchDashboardData = async () => {
@@ -106,6 +118,80 @@
                 } catch (err) {
                     console.error("거래 내역 조회 실패:", err);
                 }
+            };
+
+            const fetchFilings = async () => {
+                try {
+                    const res = await fetch('/api/tax-filings');
+                    const data = await res.json();
+                    setFilings(data);
+                } catch (err) {
+                    console.error("세금 신고 이력 조회 실패:", err);
+                }
+            };
+
+            const handleSubmitTaxFiling = async () => {
+                setIsFiling(true);
+                // Simulate processing for 1.5 seconds
+                await new Promise(resolve => setTimeout(resolve, 1500));
+
+                const currentStats = calculateFilingStats();
+                
+                try {
+                    const res = await fetch('/api/tax-filings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            period: filingForm.period,
+                            business_name: filingForm.businessName,
+                            business_reg_no: filingForm.businessRegNo,
+                            representative: filingForm.representative,
+                            revenue: currentStats.revenue,
+                            expense: currentStats.expense,
+                            calculated_tax: currentStats.calculatedTax
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        setLastFilingResult({
+                            receiptNo: `TX-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`,
+                            date: new Date().toLocaleString(),
+                            ...currentStats
+                        });
+                        setFilingStep(3);
+                        await fetchFilings();
+                        await fetchDashboardData();
+                    }
+                } catch (err) {
+                    console.error("세금 신고 제출 실패:", err);
+                } finally {
+                    setIsFiling(false);
+                }
+            };
+
+            const calculateFilingStats = () => {
+                let revenue = 0;
+                let expense = 0;
+                transactions.forEach(t => {
+                    if (t.type === 'income') {
+                        revenue += t.amount;
+                    } else if (t.type === 'expense' && t.category === 'business') {
+                        expense += t.amount;
+                    }
+                });
+
+                // Fallback to default values if transactions empty (mock initial demo)
+                if (transactions.length === 0) {
+                    revenue = 12450000;
+                    expense = 9337500;
+                }
+
+                const taxableIncome = Math.max(0, revenue - expense);
+                const calculatedTax = Math.max(0, Math.round(taxableIncome * 0.1)); // 10% rate simplified
+
+                return { revenue, expense, taxableIncome, calculatedTax };
             };
 
             const handleConnectAccounts = async () => {
@@ -220,15 +306,15 @@
                     {/* Header */}
                     <header className="shadow-sm bg-surface-container-lowest sticky top-0 z-40 border-b border-outline-variant">
                         <div className="flex justify-between items-center w-full px-4 md:px-8 h-[72px] max-w-[1200px] mx-auto">
-                            <div className="font-bold text-2xl text-primary cursor-pointer flex items-center gap-2">
+                            <div className="font-bold text-2xl text-primary cursor-pointer flex items-center gap-2" onClick={() => setActiveView('dashboard')}>
                                 <span className="material-symbols-outlined font-bold text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>calculate</span>
                                 소상공인 1초 세금비서
                             </div>
                             <nav className="hidden md:flex items-center gap-8">
-                                <a className="text-primary font-bold border-b-2 border-primary pb-1 transition-colors" href="#">홈</a>
-                                <a className="text-on-surface-variant hover:text-primary transition-colors font-medium" href="#ledger" onClick={(e) => { e.preventDefault(); setShowLedger(!showLedger); }}>장부내역</a>
-                                <a className="text-on-surface-variant hover:text-primary transition-colors font-medium" href="#">세금신고</a>
-                                <a className="text-on-surface-variant hover:text-primary transition-colors font-medium" href="#">고객센터</a>
+                                <a className={`${activeView === 'dashboard' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} href="#" onClick={(e) => { e.preventDefault(); setActiveView('dashboard'); }}>홈</a>
+                                <a className="text-on-surface-variant hover:text-primary transition-colors font-medium" href="#ledger" onClick={(e) => { e.preventDefault(); setActiveView('dashboard'); setShowLedger(true); setTimeout(() => { document.getElementById('ledger')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }}>장부내역</a>
+                                <a className={`${activeView === 'tax-filing' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} href="#" onClick={(e) => { e.preventDefault(); setActiveView('tax-filing'); setFilingStep(1); }}>세금신고</a>
+                                <a className="text-on-surface-variant hover:text-primary transition-colors font-medium" href="#" onClick={(e) => { e.preventDefault(); alert('준비 중인 기능입니다.'); }}>고객센터</a>
                             </nav>
                             <div className="flex items-center gap-4">
                                 <button className="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full hover:bg-surface-container">
@@ -244,9 +330,10 @@
                         </div>
                     </header>
 
-                    {/* Main Content */}
                     <main className="flex-grow w-full max-w-[1200px] mx-auto px-4 md:px-8 py-8 flex flex-col gap-8">
-                        {/* 1. 예상 세금 배너 */}
+                        {activeView === 'dashboard' ? (
+                            <React.Fragment>
+                                {/* 1. 예상 세금 배너 */}
                         <section className="bg-surface-container-lowest rounded-2xl shadow-md border-t-[6px] border-primary overflow-hidden flex flex-col md:flex-row items-center justify-between p-6 md:p-10 relative">
                             <div className="flex flex-col gap-3 z-10 w-full md:w-1/2">
                                 <h2 className="text-xl font-bold text-on-surface-variant flex items-center gap-2">
@@ -442,6 +529,407 @@
                                 )}
                             </section>
                         )/* End showLedger */ }
+                            </React.Fragment>
+                        ) : (
+                            /* Tax Filing View */
+                            <section className="animate-in fade-in slide-in-from-bottom-4 duration-300 flex flex-col gap-8">
+                                {/* Title and period select */}
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline-variant pb-6">
+                                    <div>
+                                        <h2 className="text-3xl font-black text-primary tracking-tight">세금 간편 전자 신고</h2>
+                                        <p className="text-on-surface-variant mt-2 text-base">
+                                            연동된 장부 데이터를 바탕으로 국세청 홈택스 신고 서식을 자동 작성하고 원클릭으로 신고를 마칩니다.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-bold text-outline">신고 대상 분기:</span>
+                                        <select 
+                                            value={filingForm.period}
+                                            onChange={(e) => setFilingForm({...filingForm, period: e.target.value})}
+                                            className="bg-white border-2 border-outline-variant rounded-xl px-4 py-2 text-base font-bold text-primary focus:outline-none focus:border-primary">
+                                            <option value="2026년 1기 부가가치세">2026년 1기 부가가치세 (예정)</option>
+                                            <option value="2026년 종합소득세">2026년 종합소득세 (간이)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Step Progress Stepper */}
+                                <div className="bg-surface-container-lowest rounded-2xl p-6 shadow-md border border-outline-variant">
+                                    <div className="flex justify-between items-center max-w-[600px] mx-auto relative">
+                                        {/* Background Line */}
+                                        <div className="absolute top-1/2 left-0 right-0 h-1 bg-surface-container-high -translate-y-1/2 z-0"></div>
+                                        {/* Active Progress Line */}
+                                        <div 
+                                            className="absolute top-1/2 left-0 h-1 bg-primary -translate-y-1/2 z-0 transition-all duration-300"
+                                            style={{ width: `${(filingStep - 1) * 50}%` }}></div>
+                                        
+                                        {/* Step 1 */}
+                                        <div className="flex flex-col items-center z-10">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-base transition-colors ${filingStep >= 1 ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>
+                                                {filingStep > 1 ? <span className="material-symbols-outlined text-lg">check</span> : "1"}
+                                            </div>
+                                            <span className={`text-sm mt-2 font-bold ${filingStep >= 1 ? 'text-primary' : 'text-outline'}`}>장부 데이터 검증</span>
+                                        </div>
+
+                                        {/* Step 2 */}
+                                        <div className="flex flex-col items-center z-10">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-base transition-colors ${filingStep >= 2 ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>
+                                                {filingStep > 2 ? <span className="material-symbols-outlined text-lg">check</span> : "2"}
+                                            </div>
+                                            <span className={`text-sm mt-2 font-bold ${filingStep >= 2 ? 'text-primary' : 'text-outline'}`}>정보 입력 & 세액확인</span>
+                                        </div>
+
+                                        {/* Step 3 */}
+                                        <div className="flex flex-col items-center z-10">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-base transition-colors ${filingStep >= 3 ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>
+                                                3
+                                            </div>
+                                            <span className={`text-sm mt-2 font-bold ${filingStep >= 3 ? 'text-primary' : 'text-outline'}`}>신고 완료</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Step Panel Container */}
+                                <div className="bg-surface-container-lowest rounded-2xl shadow-md p-6 md:p-10 border border-outline-variant">
+                                    {filingStep === 1 && (
+                                        <div className="flex flex-col gap-6">
+                                            <h3 className="text-2xl font-bold text-on-surface flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-secondary">fact_check</span>
+                                                1단계: 장부 데이터 검증 및 신고 대상 내역
+                                            </h3>
+                                            <p className="text-on-surface-variant text-base">
+                                                현재까지 등록된 장부 내역이 자동 분류되어 신고 금액에 반영됩니다. 개인 지출이나 미분류 내역이 없는지 최종 검토하세요.
+                                            </p>
+
+                                            {/* Summary Cards */}
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 flex flex-col gap-1">
+                                                    <span className="text-sm font-bold text-blue-700">총 소득 (과세 매출)</span>
+                                                    <span className="text-2xl font-black text-blue-900">
+                                                        {calculateFilingStats().revenue.toLocaleString()}원
+                                                    </span>
+                                                </div>
+                                                <div className="bg-green-50 border border-green-200 rounded-xl p-5 flex flex-col gap-1">
+                                                    <span className="text-sm font-bold text-green-700">공제 대상 지출 (사업 경비)</span>
+                                                    <span className="text-2xl font-black text-green-900">
+                                                        {calculateFilingStats().expense.toLocaleString()}원
+                                                    </span>
+                                                </div>
+                                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 flex flex-col gap-1">
+                                                    <span className="text-sm font-bold text-amber-700">공제 제외 지출 (개인 용도)</span>
+                                                    <span className="text-2xl font-black text-amber-900">
+                                                        {transactions.filter(t => t.type === 'expense' && t.category === 'personal').reduce((sum, t) => sum + t.amount, 0).toLocaleString()}원
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Small Instruction Box */}
+                                            <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant flex gap-3 items-start">
+                                                <span className="material-symbols-outlined text-secondary font-bold">info</span>
+                                                <div className="text-sm text-on-surface-variant leading-relaxed">
+                                                    <p className="font-bold text-on-surface">💡 절세 팁</p>
+                                                    <p>공제 제외(개인용)로 분류된 지출 중 사업 목적(가게 물품, 식재료 등)으로 사용된 지출이 있다면, <b>홈 화면의 실시간 영수증 장부 내역</b>에서 사업용으로 변경하여 절세 혜택을 극대화하실 수 있습니다.</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Transaction Preview Table */}
+                                            <div className="border border-outline-variant rounded-xl overflow-hidden mt-2">
+                                                <div className="bg-surface-container-low px-4 py-3 font-bold border-b border-outline-variant text-base text-on-surface flex justify-between items-center">
+                                                    <span>신고 반영 사업용 거래 목록 ({transactions.filter(t => t.type === 'income' || (t.type === 'expense' && t.category === 'business')).length}건)</span>
+                                                    <button onClick={() => { setActiveView('dashboard'); setShowLedger(true); }} className="text-sm text-primary hover:underline flex items-center gap-1 font-bold">
+                                                        장부 수정하러 가기
+                                                        <span className="material-symbols-outlined text-xs">open_in_new</span>
+                                                    </button>
+                                                </div>
+                                                <div className="max-h-[300px] overflow-y-auto">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead>
+                                                            <tr className="bg-surface-container-lowest border-b border-outline-variant text-sm font-bold text-on-surface-variant">
+                                                                <th className="p-3">날짜</th>
+                                                                <th className="p-3">구분</th>
+                                                                <th className="p-3">적요</th>
+                                                                <th className="p-3 text-right">금액</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {transactions.filter(t => t.type === 'income' || (t.type === 'expense' && t.category === 'business')).map(t => (
+                                                                <tr key={t.id} className="border-b border-outline-variant hover:bg-surface-container-low/50 text-sm">
+                                                                    <td className="p-3 text-outline">{t.date}</td>
+                                                                    <td className="p-3">
+                                                                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${t.type === 'income' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                                                                            {t.type === 'income' ? '매출' : '경비'}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="p-3 font-bold text-on-surface">{t.summary}</td>
+                                                                    <td className="p-3 text-right font-bold text-primary">{t.amount.toLocaleString()}원</td>
+                                                                </tr>
+                                                            ))}
+                                                            {transactions.filter(t => t.type === 'income' || (t.type === 'expense' && t.category === 'business')).length === 0 && (
+                                                                <tr>
+                                                                    <td colSpan="4" className="p-8 text-center text-outline">
+                                                                        신고에 반영할 소득 또는 사업용 지출 내역이 없습니다. (시연용으로 기본 수치가 적용됩니다)
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-end gap-3 mt-4">
+                                                <button 
+                                                    onClick={() => setActiveView('dashboard')}
+                                                    className="bg-surface-container-high text-on-surface font-bold py-3 px-6 rounded-xl hover:bg-surface-variant transition-all border border-outline-variant">
+                                                    취소
+                                                </button>
+                                                <button 
+                                                    onClick={() => setFilingStep(2)}
+                                                    className="bg-primary text-on-primary font-bold py-3 px-8 rounded-xl hover:bg-primary-container hover:text-on-primary-container transition-all shadow-md flex items-center gap-2">
+                                                    확인 완료 및 다음 단계로
+                                                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {filingStep === 2 && (
+                                        <div className="flex flex-col gap-6">
+                                            <h3 className="text-2xl font-bold text-on-surface flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-secondary">edit_note</span>
+                                                2단계: 사업자 정보 입력 및 세액 확인
+                                            </h3>
+                                            <p className="text-on-surface-variant text-base">
+                                                전자신고 접수증에 등록될 사장님의 사업자 정보를 입력하고 실시간 산출 세액을 검토하세요.
+                                            </p>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                                                {/* Information Form */}
+                                                <div className="space-y-4">
+                                                    <h4 className="font-bold text-lg text-primary border-b border-outline-variant pb-2">사업자 인적 사항</h4>
+                                                    <div className="flex flex-col gap-1">
+                                                        <label className="text-sm font-bold text-outline">상호명</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={filingForm.businessName}
+                                                            onChange={(e) => setFilingForm({...filingForm, businessName: e.target.value})}
+                                                            className="w-full bg-white border-2 border-outline-variant rounded-xl p-3 text-base text-on-surface font-bold focus:outline-none focus:border-primary"
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col gap-1">
+                                                        <label className="text-sm font-bold text-outline">사업자 등록번호</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={filingForm.businessRegNo}
+                                                            onChange={(e) => setFilingForm({...filingForm, businessRegNo: e.target.value})}
+                                                            className="w-full bg-white border-2 border-outline-variant rounded-xl p-3 text-base text-on-surface font-bold focus:outline-none focus:border-primary"
+                                                            placeholder="123-45-67890"
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col gap-1">
+                                                        <label className="text-sm font-bold text-outline">대표자명</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={filingForm.representative}
+                                                            onChange={(e) => setFilingForm({...filingForm, representative: e.target.value})}
+                                                            className="w-full bg-white border-2 border-outline-variant rounded-xl p-3 text-base text-on-surface font-bold focus:outline-none focus:border-primary"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Real-time tax calculator card */}
+                                                <div className="bg-gradient-to-tr from-sky-50 to-blue-50 rounded-2xl p-6 border-2 border-primary/20 shadow-inner space-y-4">
+                                                    <h4 className="font-bold text-lg text-primary flex items-center gap-2">
+                                                        <span className="material-symbols-outlined">calculate</span>
+                                                        실시간 예상 세액 산출 내역
+                                                    </h4>
+                                                    <div className="space-y-3 text-base border-y border-outline-variant/30 py-4">
+                                                        <div className="flex justify-between">
+                                                            <span className="text-on-surface-variant font-medium">총 소득 (과세 매출)</span>
+                                                            <span className="font-bold text-on-surface">{(calculateFilingStats().revenue).toLocaleString()} 원</span>
+                                                        </div>
+                                                        <div className="flex justify-between text-green-700">
+                                                            <span className="font-medium">공제 대상 지출 (사업 경비)</span>
+                                                            <span className="font-bold">- {(calculateFilingStats().expense).toLocaleString()} 원</span>
+                                                        </div>
+                                                        <div className="flex justify-between border-t border-outline-variant/20 pt-3">
+                                                            <span className="font-bold text-on-surface">과세 표준 (소득 금액)</span>
+                                                            <span className="font-black text-on-surface">{(calculateFilingStats().taxableIncome).toLocaleString()} 원</span>
+                                                        </div>
+                                                        <div className="flex justify-between text-xs text-outline">
+                                                            <span>적용 세율 (간이 기준)</span>
+                                                            <span>10.0%</span>
+                                                        </div>
+                                                        <div className="flex justify-between border-t-2 border-dashed border-outline-variant/40 pt-3 text-xl font-black text-primary">
+                                                            <span>최종 납부(환급) 세액</span>
+                                                            <span>{(calculateFilingStats().calculatedTax).toLocaleString()} 원</span>
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-xs text-outline leading-normal">
+                                                        * 본 계산은 장부에 입력된 데이터를 바탕으로 간이 세율을 적용한 모의 계산식이며, 공제 항목 추가에 따라 달라질 수 있습니다.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-end gap-3 mt-4 border-t border-outline-variant pt-6">
+                                                <button 
+                                                    onClick={() => setFilingStep(1)}
+                                                    className="bg-surface-container-high text-on-surface font-bold py-3 px-6 rounded-xl hover:bg-surface-variant transition-all border border-outline-variant">
+                                                    이전 단계로
+                                                </button>
+                                                <button 
+                                                    onClick={handleSubmitTaxFiling}
+                                                    disabled={isFiling}
+                                                    className="bg-primary text-on-primary font-bold py-3 px-8 rounded-xl hover:bg-primary-container hover:text-on-primary-container disabled:opacity-85 transition-all shadow-md flex items-center gap-2 active:scale-95">
+                                                    {isFiling ? (
+                                                        <React.Fragment>
+                                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                            국세청 전송 및 신고 중...
+                                                        </React.Fragment>
+                                                    ) : (
+                                                        <React.Fragment>
+                                                            <span className="material-symbols-outlined text-base">send</span>
+                                                            세금 신고서 최종 제출하기
+                                                        </React.Fragment>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {filingStep === 3 && lastFilingResult && (
+                                        <div className="flex flex-col items-center gap-6 py-6">
+                                            <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center shadow-md animate-bounce">
+                                                <span className="material-symbols-outlined text-4xl font-black">done</span>
+                                            </div>
+                                            <div className="text-center">
+                                                <h3 className="text-2xl font-black text-on-surface">세금 신고가 성공적으로 완료되었습니다!</h3>
+                                                <p className="text-on-surface-variant text-base mt-2">
+                                                    신고서가 국세청 홈택스에 전송되었으며 아래와 같이 전자 접수증이 발급되었습니다.
+                                                </p>
+                                            </div>
+
+                                            {/* Tax Receipt (Government style) */}
+                                            <div className="w-full max-w-[500px] border-2 border-double border-primary p-6 bg-white shadow-xl rounded-xl space-y-6 relative overflow-hidden">
+                                                {/* Watermark Logo */}
+                                                <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] select-none pointer-events-none">
+                                                    <span className="material-symbols-outlined text-[200px] font-black text-primary">calculate</span>
+                                                </div>
+                                                
+                                                <div className="text-center border-b-2 border-primary/20 pb-4">
+                                                    <span className="text-xs font-bold text-primary tracking-widest border border-primary px-2.5 py-0.5 rounded-full">국세청 전자신고</span>
+                                                    <h4 className="text-2xl font-black text-primary mt-2">부가가치세 신고 접수증</h4>
+                                                </div>
+
+                                                <div className="space-y-3.5 text-sm text-on-surface">
+                                                    <div className="grid grid-cols-3 border-b border-outline-variant/20 pb-2">
+                                                        <span className="font-bold text-outline">접수번호</span>
+                                                        <span className="col-span-2 font-mono font-bold text-primary">{lastFilingResult.receiptNo}</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 border-b border-outline-variant/20 pb-2">
+                                                        <span className="font-bold text-outline">신고분기</span>
+                                                        <span className="col-span-2 font-bold">{filingForm.period}</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 border-b border-outline-variant/20 pb-2">
+                                                        <span className="font-bold text-outline">사업자 상호</span>
+                                                        <span className="col-span-2 font-bold">{filingForm.businessName}</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 border-b border-outline-variant/20 pb-2">
+                                                        <span className="font-bold text-outline">대표자명</span>
+                                                        <span className="col-span-2 font-bold">{filingForm.representative}</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 border-b border-outline-variant/20 pb-2">
+                                                        <span className="font-bold text-outline">신고 매출액</span>
+                                                        <span className="col-span-2 font-bold">{lastFilingResult.revenue.toLocaleString()} 원</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 border-b border-outline-variant/20 pb-2">
+                                                        <span className="font-bold text-outline">신고 경비액</span>
+                                                        <span className="col-span-2 font-bold">{lastFilingResult.expense.toLocaleString()} 원</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 border-b border-outline-variant/20 pb-2">
+                                                        <span className="font-bold text-outline">납부할 세액</span>
+                                                        <span className="col-span-2 font-black text-primary text-base">{lastFilingResult.calculatedTax.toLocaleString()} 원</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 pb-2">
+                                                        <span className="font-bold text-outline">접수일시</span>
+                                                        <span className="col-span-2 text-outline-variant font-medium">{lastFilingResult.date}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="text-center text-xs text-outline border-t border-primary/20 pt-4 leading-normal">
+                                                    귀하의 세금 신고서가 정상 접수되었습니다. 납부 기한 내에 세액을 납부해 주시기 바랍니다.
+                                                    <p className="font-bold mt-1 text-primary">대한민국 국세청 / 소상공인 1초 세금비서</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-4 w-full justify-center mt-4">
+                                                <button 
+                                                    onClick={() => {
+                                                        setActiveView('dashboard');
+                                                        setFilingStep(1);
+                                                    }}
+                                                    className="bg-primary text-on-primary font-bold py-3.5 px-8 rounded-xl hover:bg-primary-container hover:text-on-primary-container transition-all shadow-md">
+                                                    대시보드로 돌아가기
+                                                </button>
+                                                <button 
+                                                    onClick={() => window.print()}
+                                                    className="bg-surface-container-high text-on-surface font-bold py-3.5 px-6 rounded-xl hover:bg-surface-variant transition-all border border-outline-variant flex items-center gap-1">
+                                                    <span className="material-symbols-outlined text-base">print</span>
+                                                    접수증 인쇄하기
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Tax Filing History List */}
+                                <div className="bg-surface-container-lowest rounded-2xl shadow-md p-6 md:p-8 border border-outline-variant">
+                                    <h3 className="text-2xl font-bold text-on-surface flex items-center gap-2 mb-6">
+                                        <span className="material-symbols-outlined text-primary">history</span>
+                                        과거 세금 신고 내역 및 접수 현황
+                                    </h3>
+
+                                    {filings.length === 0 ? (
+                                        <div className="text-center py-10 text-outline border-2 border-dashed border-outline-variant rounded-xl">
+                                            <span className="material-symbols-outlined text-4xl mb-1 text-outline-variant">history</span>
+                                            <p className="text-base font-bold">아직 완료된 세금 신고 내역이 없습니다.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="border-b border-outline-variant bg-surface-container-low text-on-surface-variant font-bold text-sm">
+                                                        <th className="p-3 rounded-l-xl">신고 일자</th>
+                                                        <th className="p-3">신고 분기</th>
+                                                        <th className="p-3">상호명 (대표자)</th>
+                                                        <th className="p-3 text-right">매출액 (소득)</th>
+                                                        <th className="p-3 text-right">경비액 (사업지출)</th>
+                                                        <th className="p-3 text-right">최종 세액</th>
+                                                        <th className="p-3 rounded-r-xl text-center">접수 상태</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {filings.map((f) => (
+                                                        <tr key={f.id} className="border-b border-outline-variant hover:bg-surface-container-low/20 text-sm">
+                                                            <td className="p-3 font-medium text-on-surface-variant">{f.created_at}</td>
+                                                            <td className="p-3 font-bold text-on-surface">{f.period}</td>
+                                                            <td className="p-3">{f.business_name} ({f.representative})</td>
+                                                            <td className="p-3 text-right font-medium">{f.revenue.toLocaleString()}원</td>
+                                                            <td className="p-3 text-right font-medium text-green-700">{f.expense.toLocaleString()}원</td>
+                                                            <td className="p-3 text-right font-bold text-primary">{f.calculated_tax.toLocaleString()}원</td>
+                                                            <td className="p-3 text-center">
+                                                                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-bold shadow-sm">
+                                                                    접수완료
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+                        )}
                     </main>
 
                     {/* Footer */}

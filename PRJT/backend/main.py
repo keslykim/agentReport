@@ -33,6 +33,20 @@ def init_db():
             category TEXT NOT NULL -- 'business'(사업용) 또는 'personal'(개인용)
         )
     """)
+    # 세금 신고 이력 테이블
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tax_filings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            period TEXT NOT NULL,
+            business_name TEXT NOT NULL,
+            business_reg_no TEXT NOT NULL,
+            representative TEXT NOT NULL,
+            revenue INTEGER NOT NULL,
+            expense INTEGER NOT NULL,
+            calculated_tax INTEGER NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -515,6 +529,47 @@ def create_transactions_bulk(transactions: List[TransactionCreate]):
     conn.commit()
     conn.close()
     return {"status": "success", "message": f"{len(transactions)}건의 내역이 장부에 성공적으로 저장되었습니다."}
+
+
+class TaxFilingCreate(BaseModel):
+    period: str
+    business_name: str
+    business_reg_no: str
+    representative: str
+    revenue: int
+    expense: int
+    calculated_tax: int
+
+
+@app.post("/api/tax-filings")
+def create_tax_filing(filing: TaxFilingCreate):
+    """
+    세금 신고 내역을 저장합니다.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    today_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("""
+        INSERT INTO tax_filings (period, business_name, business_reg_no, representative, revenue, expense, calculated_tax, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (filing.period, filing.business_name, filing.business_reg_no, filing.representative, filing.revenue, filing.expense, filing.calculated_tax, today_str))
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": "세금 신고가 성공적으로 완료되었습니다."}
+
+
+@app.get("/api/tax-filings")
+def get_tax_filings():
+    """
+    전체 세금 신고 이력을 반환합니다.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tax_filings ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 
 # 프론트엔드 정적 파일 서빙 등록
