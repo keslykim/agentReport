@@ -129,7 +129,8 @@ function App() {
                     summary: r.summary,
                     amount: r.amount,
                     type: r.type,
-                    category: r.category
+                    category: r.category,
+                    proof_type: r.proof_type || '신용카드'
                 })))
             });
             const data = await res.json();
@@ -218,7 +219,18 @@ function App() {
                         {/* Speech Bubble */}
                         <div className="absolute top-2 right-4 bg-primary text-on-primary p-4 rounded-2xl rounded-br-none shadow-md max-w-[280px] z-10 float-animation border border-primary-container">
                             <p className="text-base font-bold leading-snug">
-                                "반갑습니다 사장님!<br/>저 세복이에게 세금 걱정은 싹 맡기시고 오늘 장사에만 집중하세요!"
+                                {dashboard.seboki_warnings && dashboard.seboki_warnings.length > 0 ? (
+                                    <span>
+                                        반갑습니다 사장님! 분석 결과 아래 지출은 주의가 필요해요:<br/><br/>
+                                        {dashboard.seboki_warnings.map((warn, i) => (
+                                            <span key={i} className="block mb-1.5 text-sm font-normal">
+                                                {warn}
+                                            </span>
+                                        ))}
+                                    </span>
+                                ) : (
+                                    "반갑습니다 사장님! 저 세복이에게 세금 걱정은 싹 맡기시고 오늘 장사에만 집중하세요!"
+                                )}
                             </p>
                         </div>
                         {/* Mascot Image */}
@@ -516,20 +528,39 @@ function App() {
                                             />
                                         </div>
                                     </div>
-                                    <div className="flex gap-2 items-center">
-                                        <span className="text-xs text-outline font-bold">세무 분류 수정:</span>
-                                        <select
-                                            value={result.category}
-                                            onChange={(e) => {
-                                                const cat = e.target.value;
-                                                handleResultChange(idx, 'category', cat);
-                                                handleResultChange(idx, 'category_kr', cat === 'business' ? '사업용 (절세 대상)' : '개인용 (공제 제외)');
-                                            }}
-                                            className="bg-white border border-outline-variant rounded-lg px-2 py-1 text-xs font-bold text-on-surface focus:outline-none focus:border-primary"
-                                        >
-                                            <option value="business">💼 사업용 (절세)</option>
-                                            <option value="personal">👤 개인용 (공제제외)</option>
-                                        </select>
+                                    <div className="flex gap-4 items-center">
+                                        <div className="flex gap-2 items-center">
+                                            <span className="text-xs text-outline font-bold">세무 분류 수정:</span>
+                                            <select
+                                                value={result.category}
+                                                onChange={(e) => {
+                                                    const cat = e.target.value;
+                                                    handleResultChange(idx, 'category', cat);
+                                                    handleResultChange(idx, 'category_kr', cat === 'business' ? '사업용 (절세 대상)' : '개인용 (공제 제외)');
+                                                }}
+                                                className="bg-white border border-outline-variant rounded-lg px-2 py-1 text-xs font-bold text-on-surface focus:outline-none focus:border-primary"
+                                            >
+                                                <option value="business">💼 사업용 (절세)</option>
+                                                <option value="personal">👤 개인용 (공제제외)</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex gap-2 items-center">
+                                            <span className="text-xs text-outline font-bold">증빙 종류:</span>
+                                            <select
+                                                value={result.proof_type || "신용카드"}
+                                                onChange={(e) => {
+                                                    handleResultChange(idx, 'proof_type', e.target.value);
+                                                }}
+                                                className="bg-white border border-outline-variant rounded-lg px-2 py-1 text-xs font-bold text-on-surface focus:outline-none focus:border-primary"
+                                            >
+                                                <option value="세금계산서">세금계산서</option>
+                                                <option value="계산서">계산서</option>
+                                                <option value="신용카드">신용카드</option>
+                                                <option value="현금영수증">현금영수증</option>
+                                                <option value="간이영수증">간이영수증</option>
+                                                <option value="증빙없음">증빙없음</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
