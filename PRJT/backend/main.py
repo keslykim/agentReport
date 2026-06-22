@@ -120,7 +120,7 @@ def get_dashboard():
     incomes_sum = 0
     receipts_list = []
     
-    from backend.logic.tax_calc import Receipt, calculate_estimated_tax, TaxInputData
+    from backend.tax_calc import Receipt, calculate_estimated_tax, TaxInputData
     
     for row in rows:
         if row["type"] == "expense":
