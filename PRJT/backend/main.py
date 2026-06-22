@@ -30,9 +30,16 @@ def init_db():
             summary TEXT NOT NULL,
             amount INTEGER NOT NULL,
             type TEXT NOT NULL, -- 'income'(소득) 또는 'expense'(지출)
-            category TEXT NOT NULL -- 'business'(사업용) 또는 'personal'(개인용)
+            category TEXT NOT NULL, -- 'business'(사업용) 또는 'personal'(개인용)
+            proof_type TEXT DEFAULT '신용카드'
         )
     """)
+    # 기존 데이터베이스에 proof_type 컬럼이 없는 경우를 위한 마이그레이션
+    try:
+        cursor.execute("ALTER TABLE transactions ADD COLUMN proof_type TEXT DEFAULT '신용카드'")
+    except sqlite3.OperationalError:
+        pass
+
     # 세금 신고 이력 테이블
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tax_filings (
@@ -102,16 +109,35 @@ def get_dashboard():
     메인 대시보드에서 필요로 하는 요약 통계를 제공합니다.
     """
     conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # 전체 지출 중 사업용/개인용 비중 계산
-    cursor.execute("SELECT category, SUM(amount) FROM transactions WHERE type='expense' GROUP BY category")
+    # 전체 거래 내역 조회
+    cursor.execute("SELECT * FROM transactions")
     rows = cursor.fetchall()
     
     expenses = {"business": 0, "personal": 0}
+    incomes_sum = 0
+    receipts_list = []
+    
+    from backend.logic.tax_calc import Receipt, calculate_estimated_tax, TaxInputData
+    
     for row in rows:
-        expenses[row[0]] = row[1]
-        
+        if row["type"] == "expense":
+            cat = row["category"]
+            expenses[cat] = expenses.get(cat, 0) + row["amount"]
+            # 세금 계산에는 사업용 지출만 포함시킵니다.
+            if cat == "business":
+                proof = row["proof_type"] if ("proof_type" in row.keys() and row["proof_type"]) else "신용카드"
+                receipts_list.append(Receipt(
+                    id=row["id"],
+                    store_name=row["summary"],
+                    amount=row["amount"],
+                    proof_type=proof
+                ))
+        elif row["type"] == "income":
+            incomes_sum += row["amount"]
+            
     total_expense = expenses["business"] + expenses["personal"]
     
     # 비율 계산 (지출이 없을 경우 기본값 사업용 75%, 개인용 25% 시연 데이터 사용)
@@ -122,20 +148,26 @@ def get_dashboard():
         business_ratio = 75
         personal_ratio = 25
         
-    # 최근 장부 신규 건수 조회
-    cursor.execute("SELECT COUNT(*) FROM transactions")
-    recent_count = cursor.fetchone()[0]
+    recent_count = len(rows)
     
-    # 예상 세금 계산 (사업용 지출이 많을수록 세금이 감면되는 단순화된 산식)
-    # 기본 예상 세금 2,500,000원에서 사업용 지출의 10%만큼 세액공제 적용
-    base_tax = 2500000
-    tax_deduction = int(expenses["business"] * 0.1)
-    expected_tax = max(0, base_tax - tax_deduction)
+    # 매출액이 0인 경우 데모를 위해 초기 연 매출 기본값 124,500,000원으로 설정
+    total_revenue = incomes_sum if incomes_sum > 0 else 124500000
     
-    # 만약 데이터가 아예 없다면 초기 시연값 1,245,000원 출력
+    # 노란우산공제 기납입액 데모 기본값 3,000,000원
+    tax_input = TaxInputData(
+        total_revenue=total_revenue,
+        receipts=receipts_list,
+        yellow_umbrella_paid=3000000
+    )
+    
+    tax_result = calculate_estimated_tax(tax_input)
+    
+    # 예상 세금: 부가세 + 종합소득세(과세표준 * 10% 단순화 적용)
+    # 데이터가 아예 없다면 초기 시연값 1,245,000원 출력
     if recent_count == 0:
         expected_tax = 1245000
-        recent_count = 0
+    else:
+        expected_tax = tax_result["estimated_vat"] + int(tax_result["taxable_income"] * 0.1)
         
     conn.close()
     
@@ -144,7 +176,11 @@ def get_dashboard():
         "business_ratio": business_ratio,
         "personal_ratio": personal_ratio,
         "recent_count": recent_count,
-        "d_day": "10월 15일"
+        "d_day": "10월 15일",
+        "estimated_vat": tax_result["estimated_vat"],
+        "valid_expenses_total": tax_result["valid_expenses_total"],
+        "taxable_income": tax_result["taxable_income"],
+        "seboki_warnings": tax_result["seboki_warnings"]
     }
 
 
@@ -179,25 +215,25 @@ def connect_accounts():
     
     # 모의 거래 내역 14건 삽입 (10건 사업용, 4건 개인용)
     mock_data = [
-        ("2026-06-19", "농협하나로마트 식자재", 450000, "expense", "business"),
-        ("2026-06-18", "구글 마케팅 광고비", 120000, "expense", "business"),
-        ("2026-06-18", "SK에너지 주유소 (배달용)", 75000, "expense", "business"),
-        ("2026-06-17", "스타벅스 커피 (개인)", 12500, "expense", "personal"),
-        ("2026-06-17", "중부세무서 부가세 납부", 540000, "expense", "business"),
-        ("2026-06-16", "이마트 개인 장보기", 89000, "expense", "personal"),
-        ("2026-06-15", "쿠팡비즈 사무실 비품", 45000, "expense", "business"),
-        ("2026-06-15", "당근마켓 광고비", 30000, "expense", "business"),
-        ("2026-06-14", "김밥천국 점심식사", 9000, "expense", "business"),
-        ("2026-06-13", "개인 택시 요금", 18000, "expense", "personal"),
-        ("2026-06-12", "가게 월세 (임대료)", 1000000, "expense", "business"),
-        ("2026-06-11", "네이버 스마트스토어 정산", 3500000, "income", "business"),
-        ("2026-06-10", "올리브영 화장품", 32000, "expense", "personal"),
-        ("2026-06-09", "퀵서비스 오토바이 배송", 25000, "expense", "business")
+        ("2026-06-19", "농협하나로마트 식자재", 450000, "expense", "business", "신용카드"),
+        ("2026-06-18", "구글 마케팅 광고비", 120000, "expense", "business", "신용카드"),
+        ("2026-06-18", "SK에너지 주유소 (배달용)", 75000, "expense", "business", "신용카드"),
+        ("2026-06-17", "스타벅스 커피 (개인)", 12500, "expense", "personal", "신용카드"),
+        ("2026-06-17", "중부세무서 부가세 납부", 540000, "expense", "business", "세금계산서"),
+        ("2026-06-16", "이마트 개인 장보기", 89000, "expense", "personal", "신용카드"),
+        ("2026-06-15", "쿠팡비즈 사무실 비품", 45000, "expense", "business", "간이영수증"), # Over 30k -> warning!
+        ("2026-06-15", "당근마켓 광고비", 30000, "expense", "business", "신용카드"),
+        ("2026-06-14", "김밥천국 점심식사", 9000, "expense", "business", "간이영수증"), # Under 30k -> no warning
+        ("2026-06-13", "개인 택시 요금", 18000, "expense", "personal", "신용카드"),
+        ("2026-06-12", "가게 월세 (임대료)", 1000000, "expense", "business", "세금계산서"),
+        ("2026-06-11", "네이버 스마트스토어 정산", 3500000, "income", "business", "신용카드"),
+        ("2026-06-10", "올리브영 화장품", 32000, "expense", "personal", "신용카드"),
+        ("2026-06-09", "퀵서비스 오토바이 배송", 25000, "expense", "business", "증빙없음")
     ]
     
     cursor.executemany("""
-        INSERT INTO transactions (date, summary, amount, type, category)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO transactions (date, summary, amount, type, category, proof_type)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, mock_data)
     
     conn.commit()
@@ -235,14 +271,25 @@ def upload_receipt(
     category = classify_transaction(parsed_summary, amount)
     category_kr = "사업용 (절세 대상)" if category == "business" else "개인용 (공제 제외)"
     
+    # 증빙 유형 결정
+    proof_type = "신용카드"
+    if "간이" in filename or "간이" in parsed_summary:
+        proof_type = "간이영수증"
+    elif "세금" in filename or "계산서" in filename or "세금" in parsed_summary or "계산서" in parsed_summary:
+        proof_type = "세금계산서"
+    elif "현금" in filename or "현금" in parsed_summary:
+        proof_type = "현금영수증"
+    elif "증빙없음" in filename or "무증빙" in filename or "증빙없음" in parsed_summary:
+        proof_type = "증빙없음"
+        
     # DB 저장
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     today_str = time.strftime("%Y-%m-%d")
     cursor.execute("""
-        INSERT INTO transactions (date, summary, amount, type, category)
-        VALUES (?, ?, ?, 'expense', ?)
-    """, (today_str, parsed_summary, amount, category))
+        INSERT INTO transactions (date, summary, amount, type, category, proof_type)
+        VALUES (?, ?, ?, 'expense', ?, ?)
+    """, (today_str, parsed_summary, amount, category, proof_type))
     conn.commit()
     conn.close()
     
@@ -398,7 +445,8 @@ async def analyze_receipt_image(file: UploadFile) -> dict:
                                     "Analyze this receipt image. Extract the exact business/store/merchant name (사용처 또는 상호명, e.g., '스타벅스', '이마트', 'SK에너지 주유소'). "
                                     "Do not add any extra words like '지출 증빙' or general descriptions, just output the pure merchant name. "
                                     "Also extract the total payment amount. "
-                                    "Response MUST be strictly a JSON object with keys: {\"summary\": \"상호명\", \"amount\": 금액(숫자)}. "
+                                    "Also extract the proof type. The possible values are: '세금계산서', '계산서', '신용카드', '현금영수증', '간이영수증', '증빙없음'. "
+                                    "Response MUST be strictly a JSON object with keys: {\"summary\": \"상호명\", \"amount\": 금액(숫자), \"proof_type\": \"증빙종류\"}. "
                                     "Do not wrap it in markdown code blocks. Return the raw JSON."
                                 )
                             },
@@ -422,7 +470,8 @@ async def analyze_receipt_image(file: UploadFile) -> dict:
             data = json.loads(result_text.strip())
             summary = data.get("summary", "식자재마트")
             amount = int(data.get("amount", 50000))
-            return {"summary": summary, "amount": amount}
+            proof_type = data.get("proof_type", "신용카드")
+            return {"summary": summary, "amount": amount, "proof_type": proof_type}
         except Exception as e:
             print(f"OpenAI Vision API 분석 실패: {e}, 로컬 OCR 분석 진행")
  
@@ -433,6 +482,18 @@ async def analyze_receipt_image(file: UploadFile) -> dict:
         amount_match = re.search(r'\d+', filename)
         if amount_match and (not ocr_result["amount"] or ocr_result["amount"] == 50000):
             ocr_result["amount"] = int(amount_match.group())
+            
+        proof_type = "신용카드"
+        if "간이" in filename or "간이" in ocr_result["summary"]:
+            proof_type = "간이영수증"
+        elif "세금" in filename or "계산서" in filename or "세금" in ocr_result["summary"] or "계산서" in ocr_result["summary"]:
+            proof_type = "세금계산서"
+        elif "현금" in filename or "현금" in ocr_result["summary"]:
+            proof_type = "현금영수증"
+        elif "증빙없음" in filename or "무증빙" in filename or "증빙없음" in ocr_result["summary"]:
+            proof_type = "증빙없음"
+            
+        ocr_result["proof_type"] = proof_type
         return ocr_result
 
     # 3. 로컬 OCR 분석이 완벽하지 않거나 실패한 경우의 규칙 기반 폴백
@@ -466,7 +527,17 @@ async def analyze_receipt_image(file: UploadFile) -> dict:
     if not amount:
         amount = random.choice([12500, 28000, 39500, 84000, 126000])
         
-    return {"summary": parsed_summary, "amount": amount}
+    proof_type = "신용카드"
+    if "간이" in filename or "간이" in parsed_summary:
+        proof_type = "간이영수증"
+    elif "세금" in filename or "계산서" in filename or "세금" in parsed_summary or "계산서" in parsed_summary:
+        proof_type = "세금계산서"
+    elif "현금" in filename or "현금" in parsed_summary:
+        proof_type = "현금영수증"
+    elif "증빙없음" in filename or "무증빙" in filename or "증빙없음" in parsed_summary:
+        proof_type = "증빙없음"
+        
+    return {"summary": parsed_summary, "amount": amount, "proof_type": proof_type}
 
 
 from typing import List
@@ -486,6 +557,7 @@ async def upload_receipts(
         analysis = await analyze_receipt_image(file)
         parsed_summary = analysis["summary"]
         amount = analysis["amount"]
+        proof_type = analysis.get("proof_type", "신용카드")
             
         category = classify_transaction(parsed_summary, amount)
         category_kr = "사업용 (절세 대상)" if category == "business" else "개인용 (공제 제외)"
@@ -497,7 +569,8 @@ async def upload_receipts(
             "amount": amount,
             "type": "expense",
             "category": category,
-            "category_kr": category_kr
+            "category_kr": category_kr,
+            "proof_type": proof_type
         })
         
     return {
@@ -513,6 +586,7 @@ class TransactionCreate(BaseModel):
     amount: int
     type: str
     category: str
+    proof_type: str = "신용카드"
 
 @app.post("/api/transactions/bulk")
 def create_transactions_bulk(transactions: List[TransactionCreate]):
@@ -523,9 +597,9 @@ def create_transactions_bulk(transactions: List[TransactionCreate]):
     cursor = conn.cursor()
     for tx in transactions:
         cursor.execute("""
-            INSERT INTO transactions (date, summary, amount, type, category)
-            VALUES (?, ?, ?, ?, ?)
-        """, (tx.date, tx.summary, tx.amount, tx.type, tx.category))
+            INSERT INTO transactions (date, summary, amount, type, category, proof_type)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (tx.date, tx.summary, tx.amount, tx.type, tx.category, tx.proof_type))
     conn.commit()
     conn.close()
     return {"status": "success", "message": f"{len(transactions)}건의 내역이 장부에 성공적으로 저장되었습니다."}
