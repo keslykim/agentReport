@@ -204,43 +204,44 @@ def get_transactions():
 def connect_accounts():
     """
     '내 계좌 연결하기' 시뮬레이션 API
-    2초 딜레이를 주어 로딩 효과를 주고, 모의 거래 데이터 14건을 삽입합니다.
+    2초 딜레이를 주어 로딩 효과를 주고, DB 데이터를 보존하거나 없으면 기본값을 삽입합니다.
     """
     time.sleep(2)  # 시연용 2초 대기
     
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    # 기존 데이터 삭제 (시연 리셋)
-    cursor.execute("DELETE FROM transactions")
+    # 기존 데이터 개수 확인
+    cursor.execute("SELECT count(*) FROM transactions")
+    count = cursor.fetchone()[0]
     
-    # 모의 거래 내역 14건 삽입 (10건 사업용, 4건 개인용)
-    mock_data = [
-        ("2026-06-19", "농협하나로마트 식자재", 450000, "expense", "business", "신용카드"),
-        ("2026-06-18", "구글 마케팅 광고비", 120000, "expense", "business", "신용카드"),
-        ("2026-06-18", "SK에너지 주유소 (배달용)", 75000, "expense", "business", "신용카드"),
-        ("2026-06-17", "스타벅스 커피 (개인)", 12500, "expense", "personal", "신용카드"),
-        ("2026-06-17", "중부세무서 부가세 납부", 540000, "expense", "business", "세금계산서"),
-        ("2026-06-16", "이마트 개인 장보기", 89000, "expense", "personal", "신용카드"),
-        ("2026-06-15", "쿠팡비즈 사무실 비품", 45000, "expense", "business", "간이영수증"), # Over 30k -> warning!
-        ("2026-06-15", "당근마켓 광고비", 30000, "expense", "business", "신용카드"),
-        ("2026-06-14", "김밥천국 점심식사", 9000, "expense", "business", "간이영수증"), # Under 30k -> no warning
-        ("2026-06-13", "개인 택시 요금", 18000, "expense", "personal", "신용카드"),
-        ("2026-06-12", "가게 월세 (임대료)", 1000000, "expense", "business", "세금계산서"),
-        ("2026-06-11", "네이버 스마트스토어 정산", 3500000, "income", "business", "신용카드"),
-        ("2026-06-10", "올리브영 화장품", 32000, "expense", "personal", "신용카드"),
-        ("2026-06-09", "퀵서비스 오토바이 배송", 25000, "expense", "business", "증빙없음")
-    ]
+    if count == 0:
+        # 모의 거래 내역 14건 삽입 (10건 사업용, 4건 개인용)
+        mock_data = [
+            ("2026-06-19", "농협하나로마트 식자재", 450000, "expense", "business", "신용카드"),
+            ("2026-06-18", "구글 마케팅 광고비", 120000, "expense", "business", "신용카드"),
+            ("2026-06-18", "SK에너지 주유소 (배달용)", 75000, "expense", "business", "신용카드"),
+            ("2026-06-17", "스타벅스 커피 (개인)", 12500, "expense", "personal", "신용카드"),
+            ("2026-06-17", "중부세무서 부가세 납부", 540000, "expense", "business", "세금계산서"),
+            ("2026-06-16", "이마트 개인 장보기", 89000, "expense", "personal", "신용카드"),
+            ("2026-06-15", "쿠팡비즈 사무실 비품", 45000, "expense", "business", "간이영수증"), # Over 30k -> warning!
+            ("2026-06-15", "당근마켓 광고비", 30000, "expense", "business", "신용카드"),
+            ("2026-06-14", "김밥천국 점심식사", 9000, "expense", "business", "간이영수증"), # Under 30k -> no warning
+            ("2026-06-13", "개인 택시 요금", 18000, "expense", "personal", "신용카드"),
+            ("2026-06-12", "가게 월세 (임대료)", 1000000, "expense", "business", "세금계산서"),
+            ("2026-06-11", "네이버 스마트스토어 정산", 3500000, "income", "business", "신용카드"),
+            ("2026-06-10", "올리브영 화장품", 32000, "expense", "personal", "신용카드"),
+            ("2026-06-09", "퀵서비스 오토바이 배송", 25000, "expense", "business", "증빙없음")
+        ]
+        
+        cursor.executemany("""
+            INSERT INTO transactions (date, summary, amount, type, category, proof_type)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, mock_data)
+        conn.commit()
     
-    cursor.executemany("""
-        INSERT INTO transactions (date, summary, amount, type, category, proof_type)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, mock_data)
-    
-    conn.commit()
     conn.close()
-    
-    return {"status": "success", "message": "14건의 거래 내역이 연동되었습니다."}
+    return {"status": "success", "message": "거래 내역이 연동되었습니다."}
 
 
 @app.post("/api/upload-receipt")
