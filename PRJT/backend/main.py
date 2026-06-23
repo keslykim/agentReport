@@ -656,9 +656,54 @@ app.mount("/js", StaticFiles(directory="js"), name="js")
 app.mount("/css", StaticFiles(directory="css"), name="css")
 app.mount("/html", StaticFiles(directory="html"), name="html")
 
+@app.get("/chat_icon.png")
+def get_chat_icon():
+    """
+    챗봇 아이콘 이미지 서빙
+    """
+    return FileResponse("chat_icon.png")
+
+class ChatbotQuery(BaseModel):
+    message: str
+
+@app.post("/api/chatbot")
+def post_chatbot(query: ChatbotQuery):
+    """
+    키워드 매칭 기반 챗봇 API
+    """
+    qa_path = os.path.join("db", "chatbot_qa.json")
+    if not os.path.exists(qa_path):
+        return {"answer": "죄송합니다 사장님, 현재 챗봇 데이터베이스를 불러올 수 없습니다. 😢"}
+        
+    try:
+        with open(qa_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            qa_data = data.get("qa_data", [])
+    except Exception as e:
+        return {"answer": f"데이터 로드 중 오류가 발생했습니다: {str(e)}"}
+        
+    user_message = query.message.strip()
+    
+    # 키워드 매칭
+    matched_answer = None
+    for item in qa_data:
+        keywords = item.get("keywords", [])
+        for kw in keywords:
+            if kw.lower() in user_message.lower():
+                matched_answer = item.get("answer")
+                break
+        if matched_answer:
+            break
+            
+    if not matched_answer:
+        matched_answer = "죄송해요 사장님, 말씀하신 내용에 대한 답변을 찾지 못했어요. '부가세', '절세', '식대', '휴대폰', '종소세' 등 세무 관련 단어로 질문해 주시면 친절히 답변 드릴게요! 😢"
+        
+    return {"answer": matched_answer}
+
 @app.get("/")
 def read_root():
     """
     루트 경로 접속 시 index.html 반환
     """
     return FileResponse("html/index.html")
+
