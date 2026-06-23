@@ -625,7 +625,7 @@ function App() {
                 </div>
             )}
             {/* 챗봇 플로팅 버튼 및 챗봇 창 */}
-            <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+            <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end group">
                 {/* 챗봇 대화창 */}
                 {showChatbot && (
                     <div className="w-[380px] max-w-[calc(100vw-2rem)] h-[520px] max-h-[70vh] bg-white rounded-2xl shadow-2xl border border-outline-variant flex flex-col overflow-hidden mb-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
@@ -700,12 +700,20 @@ function App() {
                     </div>
                 )}
 
-                {/* 플로팅 버튼 */}
-                <button 
-                    onClick={() => setShowChatbot(!showChatbot)}
-                    className="w-[76px] h-[76px] rounded-full bg-primary hover:bg-primary-container text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-105 active:scale-95 border-2 border-white p-2 overflow-hidden">
-                    <img src="/chat_icon.png" alt="세복이 챗봇 버튼" className="w-full h-full object-contain" />
-                </button>
+                {/* 플로팅 버튼 영역 */}
+                <div className="relative flex items-center">
+                    {/* 말풍선 툴팁 */}
+                    <div className={`absolute right-[98px] whitespace-nowrap bg-white text-black text-[14px] font-normal py-2 px-3.5 rounded-xl shadow-xl pointer-events-none transition-opacity duration-200 border border-outline-variant z-50 ${showChatbot ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+                        챗봇 '세복이'에게 물어보세요
+                        {/* 말풍선 꼬리 */}
+                        <div className="absolute right-[-5px] top-1/2 -translate-y-1/2 w-2 h-2 bg-white rotate-45 border-t border-r border-outline-variant"></div>
+                    </div>
+                    <button 
+                        onClick={() => setShowChatbot(!showChatbot)}
+                        className="w-[84px] h-[84px] rounded-full bg-gradient-to-tr from-sky-50 to-blue-100 hover:from-sky-100 hover:to-blue-200 text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-105 active:scale-95 border-2 border-white p-2.5 overflow-hidden">
+                        <img src="/chat_icon.png" alt="세복이 챗봇 버튼" className="w-full h-full object-contain" />
+                    </button>
+                </div>
             </div>
         </div>
     );
