@@ -844,6 +844,7 @@ function App() {
     const hasTransactions = transactions.length > 0;
     const businessRatio = hasTransactions ? dashboard.business_ratio : 0;
     const personalRatio = hasTransactions ? dashboard.personal_ratio : 0;
+    const expectedTax = hasTransactions ? dashboard.expected_tax : 0;
 
     return (
         <div className="flex-grow flex flex-col min-h-screen">
@@ -917,7 +918,7 @@ function App() {
                                     이번 달 예상 세금
                                 </h2>
                                 <div className="text-4xl md:text-5xl font-black text-primary tracking-tight">
-                                    {dashboard.expected_tax.toLocaleString()}<span className="text-2xl font-bold ml-1">원</span>
+                                    {expectedTax.toLocaleString()}<span className="text-2xl font-bold ml-1">원</span>
                                 </div>
                                 <p className="text-sm text-outline mt-1">
                                     * 국세청 연동 데이터를 기반으로 계산된 예상 금액입니다.
@@ -1769,11 +1770,11 @@ function App() {
                                     <span className="material-symbols-outlined text-sm font-bold">check_circle</span>
                                     사업용 지출 절세 혜택 (10% 세액공제)
                                 </span>
-                                <span>- {dashboard.recent_count === 0 ? "0" : (2500000 - dashboard.expected_tax).toLocaleString()} 원</span>
+                                <span>- {dashboard.recent_count === 0 ? "0" : (2500000 - expectedTax).toLocaleString()} 원</span>
                             </div>
                             <div className="border-t border-outline-variant pt-4 flex justify-between text-xl font-black text-primary">
                                 <span>최종 예상 세금</span>
-                                <span>{dashboard.expected_tax.toLocaleString()} 원</span>
+                                <span>{expectedTax.toLocaleString()} 원</span>
                             </div>
                         </div>
                         <p className="text-sm text-outline mt-4 leading-relaxed">
