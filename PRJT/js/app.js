@@ -89,9 +89,9 @@ const { useState, useEffect, useRef } = React;
 
 function App() {
     const [dashboard, setDashboard] = useState({
-        expected_tax: 1245000,
-        business_ratio: 75,
-        personal_ratio: 25,
+        expected_tax: 0,
+        business_ratio: 0,
+        personal_ratio: 0,
         recent_count: 0,
         d_day: "10월 15일"
     });
@@ -210,7 +210,7 @@ function App() {
         const yellow_umbrella_deduction = Math.min(3000000, deduction_limit);
         const taxable_income = Math.max(0, business_income - yellow_umbrella_deduction);
 
-        let expected_tax = 1245000;
+        let expected_tax = 0;
         if (txs.length > 0) {
             expected_tax = estimated_vat + Math.round(taxable_income * 0.1);
         }
@@ -1762,14 +1762,14 @@ function App() {
                         <div className="space-y-4 border-y border-outline-variant py-4 text-base">
                             <div className="flex justify-between font-medium">
                                 <span className="text-outline">기본 소득세 (연동 전 기준)</span>
-                                <span>2,500,000 원</span>
+                                <span>{dashboard.recent_count === 0 ? "0 원" : "2,500,000 원"}</span>
                             </div>
                             <div className="flex justify-between font-bold text-secondary">
                                 <span className="flex items-center gap-1">
                                     <span className="material-symbols-outlined text-sm font-bold">check_circle</span>
                                     사업용 지출 절세 혜택 (10% 세액공제)
                                 </span>
-                                <span>- {(2500000 - dashboard.expected_tax).toLocaleString()} 원</span>
+                                <span>- {dashboard.recent_count === 0 ? "0" : (2500000 - dashboard.expected_tax).toLocaleString()} 원</span>
                             </div>
                             <div className="border-t border-outline-variant pt-4 flex justify-between text-xl font-black text-primary">
                                 <span>최종 예상 세금</span>
