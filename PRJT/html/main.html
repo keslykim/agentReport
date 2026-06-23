@@ -921,6 +921,10 @@
                 }
             };
 
+            const hasTransactions = transactions.length > 0;
+            const businessRatio = hasTransactions ? dashboard.business_ratio : 0;
+            const personalRatio = hasTransactions ? dashboard.personal_ratio : 0;
+
             return (
                 <div className="flex-grow flex flex-col min-h-screen">
                     {/* Header */}
@@ -1071,19 +1075,19 @@
                                             <div className="flex flex-col gap-3 w-full">
                                                 <div className="flex justify-between items-end">
                                                     <span className="text-lg font-bold text-on-surface-variant">사업용 지출 (절세 가능)</span>
-                                                    <span className="text-2xl font-bold text-primary">{dashboard.business_ratio}%</span>
+                                                    <span className="text-2xl font-bold text-primary">{businessRatio}%</span>
                                                 </div>
                                                 <div className="w-full h-6 bg-surface-variant rounded-full overflow-hidden border border-outline-variant">
-                                                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${dashboard.business_ratio}%` }}></div>
+                                                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${businessRatio}%` }}></div>
                                                 </div>
                                             </div>
                                             <div className="flex flex-col gap-3 w-full">
                                                 <div className="flex justify-between items-end">
                                                     <span className="text-lg font-bold text-on-surface-variant">개인용 지출 (공제 제외)</span>
-                                                    <span className="text-2xl font-bold text-outline">{dashboard.personal_ratio}%</span>
+                                                    <span className="text-2xl font-bold text-outline">{personalRatio}%</span>
                                                 </div>
                                                 <div className="w-full h-6 bg-surface-variant rounded-full overflow-hidden border border-outline-variant">
-                                                    <div className="h-full bg-outline-variant rounded-full transition-all" style={{ width: `${dashboard.personal_ratio}%` }}></div>
+                                                    <div className="h-full bg-outline-variant rounded-full transition-all" style={{ width: `${personalRatio}%` }}></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1952,7 +1956,7 @@
                                     <p className="text-base text-on-surface font-semibold">📈 대시보드 업데이트 리포트:</p>
                                     <ul className="list-disc list-inside text-sm text-on-surface-variant mt-2 space-y-1">
                                         <li>예상 세금이 기존 대비 대폭 절감되었습니다.</li>
-                                        <li>사업용 지출 비율이 {dashboard.business_ratio}%로 집계되었습니다.</li>
+                                        <li>사업용 지출 비율이 {businessRatio}%로 집계되었습니다.</li>
                                     </ul>
                                 </div>
                                 <button
