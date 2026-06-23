@@ -166,7 +166,7 @@ def get_dashboard():
     # 예상 세금: 부가세 + 종합소득세(과세표준 * 10% 단순화 적용)
     # 데이터가 아예 없다면 초기 시연값 1,245,000원 출력
     if recent_count == 0:
-        expected_tax = 1245000
+        expected_tax = 0
     else:
         expected_tax = tax_result["estimated_vat"] + int(tax_result["taxable_income"] * 0.1)
         
