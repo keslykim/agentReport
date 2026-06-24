@@ -174,6 +174,23 @@
             const [showWarningDetailModal, setShowWarningDetailModal] = useState(false);
             const [showReceiptResultModal, setShowReceiptResultModal] = useState(false);
             const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+            const [currentUser, setCurrentUser] = useState(() => {
+                const stored = localStorage.getItem('currentUser');
+                if (stored) {
+                    try {
+                        return JSON.parse(stored);
+                    } catch (e) {
+                        console.error("Error parsing currentUser", e);
+                    }
+                }
+                return {
+                    business_reg_no: '124-45-67890',
+                    business_name: '세복상회',
+                    representative: '김대표',
+                    email: 'ceo@example.com'
+                };
+            });
+            const [showLogoutModal, setShowLogoutModal] = useState(false);
             const [receiptResults, setReceiptResults] = useState([]);
             const [isUploading, setIsUploading] = useState(false);
             const [isLinked, setIsLinked] = useState(false);
@@ -185,9 +202,9 @@
             const [filingStep, setFilingStep] = useState(1); // 1: Verify, 2: Info & Calculate, 3: Completed
             const [filingForm, setFilingForm] = useState({
                 period: '2026년 1기 부가가치세',
-                businessName: '세복상회',
-                businessRegNo: '123-45-67890',
-                representative: '김대표',
+                businessName: currentUser.business_name || '세복상회',
+                businessRegNo: currentUser.business_reg_no || '124-45-67890',
+                representative: currentUser.representative || '김대표',
             });
             const [isFiling, setIsFiling] = useState(false);
             const [lastFilingResult, setLastFilingResult] = useState(null);
@@ -949,29 +966,29 @@
                                     <span className="material-symbols-outlined">settings</span>
                                 </button>
                                 <div className="relative">
-                                    <div 
+                                    <div
                                         onClick={() => setShowProfileDropdown(!showProfileDropdown)}
                                         className="w-10 h-10 rounded-full bg-surface-variant overflow-hidden cursor-pointer border-2 border-outline-variant hover:border-primary hover:ring-4 hover:ring-primary/10 transition-all duration-200"
                                         title="프로필 메뉴 열기"
                                     >
                                         <img alt="Seboki user profile avatar" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAceHLmOtIggpB7dULLTI1_lsWsdi_RMYeHcsl2aOuraq28URg994K5ZbbXjZr3gO-ykXnO9AkFHY448MZ-pSyv0JB5omzHnv-3i9wN2oWGIzAAFnPyEmquHXEGY-Sp0xW5eA17aYVnZOohqe57_cpetlzVTzSIDFX0qvYMdXbzVU4LlEwuNIABl5rgu_TtRXUX_tJGR3HCaGzU8h9GOqWr3VF7eo-As0JybpJ7rUMi7iCJlT_To7w90Obg4gFkErJxZfqY5FfysnTR" />
                                     </div>
-                                    
+
                                     {/* Click outside backdrop overlay to close */}
                                     {showProfileDropdown && (
                                         <div className="fixed inset-0 z-40" onClick={() => setShowProfileDropdown(false)}></div>
                                     )}
-                                    
+
                                     {/* Dropdown Menu with slide down transition */}
                                     <div className={`absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-outline-variant/60 py-3 z-50 transition-all duration-300 origin-top-right transform ${showProfileDropdown ? 'opacity-100 scale-100 translate-y-0 visible' : 'opacity-0 scale-95 -translate-y-2 invisible pointer-events-none'}`}>
                                         <div className="px-4 py-2.5 border-b border-outline-variant/40 mb-1.5">
-                                            <p className="text-sm font-black text-primary">김대표 사장님</p>
-                                            <p className="text-xs text-outline font-semibold mt-0.5">124-45-67890</p>
+                                            <p className="text-sm font-black text-primary">{currentUser.representative} 사장님</p>
+                                            <p className="text-xs text-outline font-semibold mt-0.5">{currentUser.business_reg_no}</p>
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 setShowProfileDropdown(false);
-                                                window.location.href = '/';
+                                                setShowLogoutModal(true);
                                             }}
                                             className="w-full text-left px-4 py-3 text-sm font-bold text-error hover:bg-error-container/20 flex items-center gap-2.5 transition-colors cursor-pointer"
                                         >
@@ -1873,18 +1890,18 @@
                                 </h4>
                                 <div className="space-y-4 border-y border-outline-variant py-4 text-base">
                                     <div className="flex justify-between font-medium">
-                                        <span className="text-outline">기본 소득세 (연동 전 기준)</span>
+                                        <span className="text-outline">예상 종합소득세 과세표준</span>
                                         <span>{dashboard.recent_count === 0 ? "0 원" : "2,500,000 원"}</span>
                                     </div>
                                     <div className="flex justify-between font-bold text-secondary">
                                         <span className="flex items-center gap-1">
                                             <span className="material-symbols-outlined text-sm font-bold">check_circle</span>
-                                            사업용 지출 절세 혜택 (10% 세액공제)
+                                            적격증빙 필요경비 인정액
                                         </span>
                                         <span>- {dashboard.recent_count === 0 ? "0" : (2500000 - expectedTax).toLocaleString()} 원</span>
                                     </div>
                                     <div className="border-t border-outline-variant pt-4 flex justify-between text-xl font-black text-primary">
-                                        <span>최종 예상 세금</span>
+                                        <span>최종 예상 납부 세액</span>
                                         <span>{expectedTax.toLocaleString()} 원</span>
                                     </div>
                                 </div>
@@ -1965,6 +1982,33 @@
                                     className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-container hover:text-on-primary-container transition-all">
                                     확인했습니다
                                 </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {showLogoutModal && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center relative animate-in fade-in zoom-in-95 duration-200">
+                                <div className="text-5xl mb-4">👋</div>
+                                <h4 className="text-2xl font-bold text-on-surface mb-2">로그아웃 하시겠습니까?</h4>
+                                <p className="text-base text-on-surface-variant font-medium mb-6">
+                                    <span className="text-primary font-bold">{currentUser.representative}</span> 사장님, 오늘 하루도 수고 많으셨습니다. 세복이가 사장님의 다음 방문을 기다릴게요!
+                                </p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => {
+                                            localStorage.removeItem('currentUser');
+                                            window.location.href = '/';
+                                        }}
+                                        className="flex-1 bg-error text-white font-bold py-3 rounded-xl hover:bg-red-700 transition-all shadow-md active:scale-95">
+                                        로그아웃
+                                    </button>
+                                    <button
+                                        onClick={() => setShowLogoutModal(false)}
+                                        className="flex-1 bg-surface-container-high text-on-surface font-bold py-3 rounded-xl hover:bg-surface-variant transition-all border border-outline-variant active:scale-95">
+                                        취소
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
