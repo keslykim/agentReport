@@ -274,22 +274,16 @@
                     localStorage.removeItem('tax_filings');
                 } else {
                     setIsLoggedIn(true);
-                    // localStorage에서 거래내역과 신고이력 불러오기
-                    const localTxs = getLocalTransactions();
-                    if (localTxs.length > 0) {
-                        setTransactions(localTxs);
-                        setDashboard(calculateLocalDashboard(localTxs));
-                    } else {
-                        // API 호출 시도 (실패 시 빈 상태 유지)
-                        fetch(API_BASE + '/api/dashboard')
-                            .then(r => r.ok ? r.json() : null)
-                            .then(data => { if (data) setDashboard(data); })
-                            .catch(() => {});
-                        fetch(API_BASE + '/api/transactions')
-                            .then(r => r.ok ? r.json() : null)
-                            .then(data => { if (data) setTransactions(data); })
-                            .catch(() => {});
-                    }
+                    // 로그인 후 활성화 될 때는 최근 장부내역 0건 유지 (연결하기 버튼 클릭 시에만 불러옴)
+                    setTransactions([]);
+                    setDashboard({
+                        expected_tax: 0,
+                        business_ratio: 0,
+                        personal_ratio: 0,
+                        recent_count: 0,
+                        d_day: "10월 15일"
+                    });
+                    setIsLinked(false);
                     const localFls = getLocalFilings();
                     if (localFls.length > 0) setFilings(localFls);
                 }
@@ -1024,52 +1018,52 @@
                                 <a className={`${activeView === 'customer-center' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} href="#" onClick={(e) => { e.preventDefault(); if (!isLoggedIn) { alert("로그인이 필요합니다."); window.location.href = "/html/login.html"; return; } setActiveView('customer-center'); }}>고객센터</a>
                             </nav>
                             <div className="flex items-center gap-4">
-                                 {isLoggedIn && (
-                                     <div className="hidden sm:flex items-center gap-2 bg-primary/10 border border-primary/20 px-3.5 py-1.5 rounded-full text-primary font-bold text-sm">
-                                         <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shrink-0"></span>
-                                         {currentUser?.representative} 사장님 로그인 중
-                                     </div>
-                                 )}
-                                 <button
-                                     onClick={() => {
-                                         if (!isLoggedIn) {
-                                             alert("로그인이 필요합니다.");
-                                             window.location.href = "/html/login.html";
-                                             return;
-                                         }
-                                     }}
-                                     className="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full hover:bg-surface-container"
-                                 >
-                                     <span className="material-symbols-outlined">notifications</span>
-                                 </button>
-                                 <button
-                                     onClick={() => {
-                                         if (!isLoggedIn) {
-                                             alert("로그인이 필요합니다.");
-                                             window.location.href = "/html/login.html";
-                                             return;
-                                         }
-                                     }}
-                                     className="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full hover:bg-surface-container"
-                                 >
-                                     <span className="material-symbols-outlined">settings</span>
-                                 </button>
-                                 <div className="relative">
-                                     <div
-                                         onClick={() => {
-                                             setShowProfileDropdown(!showProfileDropdown);
-                                         }}
-                                         className="w-10 h-10 rounded-full bg-surface-variant overflow-hidden cursor-pointer border-2 border-outline-variant hover:border-primary hover:ring-4 hover:ring-primary/10 transition-all duration-200 flex items-center justify-center"
-                                         title={isLoggedIn ? "프로필 메뉴 열기" : "로그인 하기"}
-                                     >
-                                         {isLoggedIn ? (
-                                             <img alt="Seboki user profile avatar" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAceHLmOtIggpB7dULLTI1_lsWsdi_RMYeHcsl2aOuraq28URg994K5ZbbXjZr3gO-ykXnO9AkFHY448MZ-pSyv0JB5omzHnv-3i9wN2oWGIzAAFnPyEmquHXEGY-Sp0xW5eA17aYVnZOohqe57_cpetlzVTzSIDFX0qvYMdXbzVU4LlEwuNIABl5rgu_TtRXUX_tJGR3HCaGzU8h9GOqWr3VF7eo-As0JybpJ7rUMi7iCJlT_To7w90Obg4gFkErJxZfqY5FfysnTR" />
-                                         ) : (
-                                             <div className="w-full h-full bg-white flex items-center justify-center text-outline">
-                                                 <span className="material-symbols-outlined text-2xl font-bold">lock_person</span>
-                                             </div>
-                                         )}
-                                     </div>
+                                {isLoggedIn && (
+                                    <div className="hidden sm:flex items-center gap-2 bg-primary/10 border border-primary/20 px-3.5 py-1.5 rounded-full text-primary font-bold text-sm">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shrink-0"></span>
+                                        {currentUser?.representative} 사장님 로그인 중
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => {
+                                        if (!isLoggedIn) {
+                                            alert("로그인이 필요합니다.");
+                                            window.location.href = "/html/login.html";
+                                            return;
+                                        }
+                                    }}
+                                    className="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full hover:bg-surface-container"
+                                >
+                                    <span className="material-symbols-outlined">notifications</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (!isLoggedIn) {
+                                            alert("로그인이 필요합니다.");
+                                            window.location.href = "/html/login.html";
+                                            return;
+                                        }
+                                    }}
+                                    className="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full hover:bg-surface-container"
+                                >
+                                    <span className="material-symbols-outlined">settings</span>
+                                </button>
+                                <div className="relative">
+                                    <div
+                                        onClick={() => {
+                                            setShowProfileDropdown(!showProfileDropdown);
+                                        }}
+                                        className="w-10 h-10 rounded-full bg-surface-variant overflow-hidden cursor-pointer border-2 border-outline-variant hover:border-primary hover:ring-4 hover:ring-primary/10 transition-all duration-200 flex items-center justify-center"
+                                        title={isLoggedIn ? "프로필 메뉴 열기" : "로그인 하기"}
+                                    >
+                                        {isLoggedIn ? (
+                                            <img alt="Seboki user profile avatar" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAceHLmOtIggpB7dULLTI1_lsWsdi_RMYeHcsl2aOuraq28URg994K5ZbbXjZr3gO-ykXnO9AkFHY448MZ-pSyv0JB5omzHnv-3i9wN2oWGIzAAFnPyEmquHXEGY-Sp0xW5eA17aYVnZOohqe57_cpetlzVTzSIDFX0qvYMdXbzVU4LlEwuNIABl5rgu_TtRXUX_tJGR3HCaGzU8h9GOqWr3VF7eo-As0JybpJ7rUMi7iCJlT_To7w90Obg4gFkErJxZfqY5FfysnTR" />
+                                        ) : (
+                                            <div className="w-full h-full bg-white flex items-center justify-center text-outline">
+                                                <span className="material-symbols-outlined text-2xl font-bold">lock_person</span>
+                                            </div>
+                                        )}
+                                    </div>
 
                                     {/* Click outside backdrop overlay to close */}
                                     {showProfileDropdown && (
@@ -1151,18 +1145,18 @@
                                         </button>
                                     </div>
                                     <div className="relative mt-8 md:mt-0 p-6 md:p-8 rounded-[32px] bg-[#eaf3ff] w-full md:w-1/2 border border-blue-100 flex flex-col justify-between overflow-visible shadow-sm">
-                                         {/* 금융 정보 미연동시(데이터 0건) Overlay 레이어 */}
-                                         {(!isLoggedIn || transactions.length === 0) && (
-                                             <div className="absolute inset-0 z-30 rounded-[32px] overflow-hidden select-none">
-                                                 <img alt="세복이 안내 가림막" className="w-full h-full object-cover" src="/seboki2.png" />
-                                             </div>
-                                         )}
-                                         {/* 연동시 노출되는 백단 이미지 (위로 2mm 추가 이동) */}
-                                         {currentUser && transactions.length > 0 && (
-                                             <div className="absolute -top-[82px] -right-[4px] z-0 w-[19.5rem] h-[19.5rem] select-none pointer-events-none">
-                                                 <img alt="세복이" className="w-full h-full object-contain" src="/seboki1.png" />
-                                             </div>
-                                         )}
+                                        {/* 금융 정보 미연동시(데이터 0건) Overlay 레이어 */}
+                                        {(!isLoggedIn || transactions.length === 0) && (
+                                            <div className="absolute inset-0 z-30 rounded-[32px] overflow-hidden select-none">
+                                                <img alt="세복이 안내 가림막" className="w-full h-full object-cover" src="/seboki2.png" />
+                                            </div>
+                                        )}
+                                        {/* 연동시 노출되는 백단 이미지 (위로 2mm 추가 이동) */}
+                                        {currentUser && transactions.length > 0 && (
+                                            <div className="absolute -top-[82px] -right-[4px] z-0 w-[19.5rem] h-[19.5rem] select-none pointer-events-none">
+                                                <img alt="세복이" className="w-full h-full object-contain" src="/seboki1.png" />
+                                            </div>
+                                        )}
                                         {/* Title and Mascot section */}
                                         <div className="flex justify-between items-start mb-6 relative">
                                             <div className="z-10">
@@ -2066,6 +2060,7 @@
                                     <span className="material-symbols-outlined text-3xl">analytics</span>
                                     세금 예상 상세 보고서
                                 </h4>
+                                {/*
                                 <div className="space-y-4 border-y border-outline-variant py-4 text-base">
                                     <div className="flex justify-between font-medium">
                                         <span className="text-outline">예상 종합소득세 과세표준</span>
@@ -2077,6 +2072,28 @@
                                             적격증빙 필요경비 인정액
                                         </span>
                                         <span>- {dashboard.recent_count === 0 ? "0" : (2500000 - expectedTax).toLocaleString()} 원</span>
+                                    </div>
+                                    <div className="border-t border-outline-variant pt-4 flex justify-between text-xl font-black text-primary">
+                                        <span>최종 예상 납부 세액</span>
+                                        <span>{expectedTax.toLocaleString()} 원</span>
+                                    </div>
+                                </div>
+                                */}
+                                <div className="space-y-4 border-y border-outline-variant py-4 text-base">
+                                    <div className="flex justify-between font-medium">
+                                        <span className="text-outline">예상 부가가치세</span>
+                                        <span>{dashboard.recent_count === 0 ? "0" : (dashboard.estimated_vat || 0).toLocaleString()} 원</span>
+                                    </div>
+                                    <div className="flex justify-between font-medium">
+                                        <span className="text-outline">예상 종합소득세 과세표준</span>
+                                        <span>{dashboard.recent_count === 0 ? "0" : (dashboard.taxable_income || 0).toLocaleString()} 원</span>
+                                    </div>
+                                    <div className="flex justify-between font-bold text-secondary">
+                                        <span className="flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-sm font-bold">check_circle</span>
+                                            적격증빙 필요경비 인정액
+                                        </span>
+                                        <span>- {dashboard.recent_count === 0 ? "0" : (dashboard.valid_expenses_total || 0).toLocaleString()} 원</span>
                                     </div>
                                     <div className="border-t border-outline-variant pt-4 flex justify-between text-xl font-black text-primary">
                                         <span>최종 예상 납부 세액</span>
