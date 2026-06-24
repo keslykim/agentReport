@@ -531,8 +531,7 @@ function App() {
         }
 
         const taxableIncome = Math.max(0, revenue - expense);
-        //const calculatedTax = Math.max(0, Math.round(taxableIncome * 0.1));
-        const calculatedTax = dashboard.total_estimated_tax;
+        const calculatedTax = dashboard.expected_tax || 0;
 
         return { revenue, expense, taxableIncome, calculatedTax };
     };
