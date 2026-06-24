@@ -358,13 +358,32 @@
                 const yellow_umbrella_deduction = Math.min(3000000, deduction_limit);
                 const taxable_income = Math.max(0, business_income - yellow_umbrella_deduction);
 
+                let income_tax = 0;
+                if (taxable_income <= 14000000) {
+                    income_tax = taxable_income * 0.06;
+                } else if (taxable_income <= 50000000) {
+                    income_tax = taxable_income * 0.15 - 1260000;
+                } else if (taxable_income <= 88000000) {
+                    income_tax = taxable_income * 0.24 - 5760000;
+                } else if (taxable_income <= 150000000) {
+                    income_tax = taxable_income * 0.35 - 15440000;
+                } else {
+                    income_tax = taxable_income * 0.38 - 19940000;
+                }
+                income_tax = Math.max(0, Math.round(income_tax));
+
+                const total_estimated_tax = estimated_vat + income_tax;
+
                 let expected_tax = 0;
                 if (txs.length > 0) {
-                    expected_tax = estimated_vat + Math.round(taxable_income * 0.1);
+                    expected_tax = total_estimated_tax;
                 }
 
                 return {
                     expected_tax,
+                    total_estimated_tax,
+                    income_tax,
+                    total_revenue,
                     business_ratio,
                     personal_ratio,
                     recent_count: txs.length,
