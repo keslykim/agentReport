@@ -171,6 +171,29 @@
             }
         };
 
+        const DEFAULT_MOCK_TRANSACTIONS = [
+            { id: 1, date: "2026-06-19", summary: "농협하나로마트 식자재", amount: 450000, type: "expense", category: "business", proof_type: "신용카드" },
+            { id: 2, date: "2026-06-18", summary: "구글 마케팅 광고비", amount: 120000, type: "expense", category: "business", proof_type: "신용카드" },
+            { id: 3, date: "2026-06-18", summary: "SK에너지 주유소 (배달용)", amount: 75000, type: "expense", category: "business", proof_type: "신용카드" },
+            { id: 4, date: "2026-06-17", summary: "스타벅스 커피 (개인)", amount: 12500, type: "expense", category: "personal", proof_type: "신용카드" },
+            { id: 5, date: "2026-06-17", summary: "중부세무서 부가세 납부", amount: 540000, type: "expense", category: "business", proof_type: "세금계산서" },
+            { id: 6, date: "2026-06-16", summary: "이마트 개인 장보기", amount: 89000, type: "expense", category: "personal", proof_type: "신용카드" },
+            { id: 7, date: "2026-06-15", summary: "쿠팡비즈 사무실 비품", amount: 45000, type: "expense", category: "business", proof_type: "간이영수증" },
+            { id: 8, date: "2026-06-15", summary: "당근마켓 광고비", amount: 30000, type: "expense", category: "business", proof_type: "신용카드" },
+            { id: 9, date: "2026-06-14", summary: "김밥천국 점심식사", amount: 9000, type: "expense", category: "business", proof_type: "간이영수증" },
+            { id: 10, date: "2026-06-13", summary: "개인 택시 요금", amount: 18000, type: "expense", category: "personal", proof_type: "신용카드" },
+            { id: 11, date: "2026-06-12", summary: "가게 월세 (임대료)", amount: 1000000, type: "expense", category: "business", proof_type: "세금계산서" },
+            { id: 12, date: "2026-06-11", summary: "네이버 스마트스토어 정산", amount: 3500000, type: "income", category: "business", proof_type: "신용카드" },
+            { id: 13, date: "2026-06-10", summary: "올리브영 화장품", amount: 32000, type: "expense", category: "personal", proof_type: "신용카드" },
+            { id: 14, date: "2026-06-09", summary: "퀵서비스 오토바이 배송", amount: 25000, type: "expense", category: "business", proof_type: "증빙없음" },
+            { id: 15, date: "2026-06-08", summary: "배민커넥트 배달 소득", amount: 150000, type: "income", category: "business", proof_type: "신용카드" },
+            { id: 16, date: "2026-06-07", summary: "쿠팡이츠 배달 소득", amount: 220000, type: "income", category: "business", proof_type: "신용카드" },
+            { id: 17, date: "2026-06-06", summary: "다이소 매장 용품", amount: 12000, type: "expense", category: "business", proof_type: "현금영수증" },
+            { id: 18, date: "2026-06-05", summary: "알바생 주간 급여", amount: 350000, type: "expense", category: "business", proof_type: "현금영수증" },
+            { id: 19, date: "2026-06-04", summary: "카카오 대리운전 (개인)", amount: 35000, type: "expense", category: "personal", proof_type: "신용카드" },
+            { id: 20, date: "2026-06-03", summary: "배달의민족 저녁식사 (개인)", amount: 28000, type: "expense", category: "personal", proof_type: "신용카드" }
+        ];
+
         function App() {
             const [dashboard, setDashboard] = useState({
                 expected_tax: 0,
@@ -291,7 +314,11 @@
 
             const getLocalTransactions = () => {
                 const val = localStorage.getItem('transactions');
-                return val ? JSON.parse(val) : [];
+                if (!val || JSON.parse(val).length === 0) {
+                    localStorage.setItem('transactions', JSON.stringify(DEFAULT_MOCK_TRANSACTIONS));
+                    return DEFAULT_MOCK_TRANSACTIONS;
+                }
+                return JSON.parse(val);
             };
 
             const setLocalTransactions = (txs) => {
@@ -664,31 +691,9 @@
                     console.warn("계좌 연결 실패, 로컬 시뮬레이션을 수행합니다:", err);
                     await new Promise(resolve => setTimeout(resolve, 2000));
 
-                    const mock_data = [
-                        { id: 1, date: "2026-06-19", summary: "농협하나로마트 식자재", amount: 450000, type: "expense", category: "business", proof_type: "신용카드" },
-                        { id: 2, date: "2026-06-18", summary: "구글 마케팅 광고비", amount: 120000, type: "expense", category: "business", proof_type: "신용카드" },
-                        { id: 3, date: "2026-06-18", summary: "SK에너지 주유소 (배달용)", amount: 75000, type: "expense", category: "business", proof_type: "신용카드" },
-                        { id: 4, date: "2026-06-17", summary: "스타벅스 커피 (개인)", amount: 12500, type: "expense", category: "personal", proof_type: "신용카드" },
-                        { id: 5, date: "2026-06-17", summary: "중부세무서 부가세 납부", amount: 540000, type: "expense", category: "business", proof_type: "세금계산서" },
-                        { id: 6, date: "2026-06-16", summary: "이마트 개인 장보기", amount: 89000, type: "expense", category: "personal", proof_type: "신용카드" },
-                        { id: 7, date: "2026-06-15", summary: "쿠팡비즈 사무실 비품", amount: 45000, type: "expense", category: "business", proof_type: "간이영수증" },
-                        { id: 8, date: "2026-06-15", summary: "당근마켓 광고비", amount: 30000, type: "expense", category: "business", proof_type: "신용카드" },
-                        { id: 9, date: "2026-06-14", summary: "김밥천국 점심식사", amount: 9000, type: "expense", category: "business", proof_type: "간이영수증" },
-                        { id: 10, date: "2026-06-13", summary: "개인 택시 요금", amount: 18000, type: "expense", category: "personal", proof_type: "신용카드" },
-                        { id: 11, date: "2026-06-12", summary: "가게 월세 (임대료)", amount: 1000000, type: "expense", category: "business", proof_type: "세금계산서" },
-                        { id: 12, date: "2026-06-11", summary: "네이버 스마트스토어 정산", amount: 3500000, type: "income", category: "business", proof_type: "신용카드" },
-                        { id: 13, date: "2026-06-10", summary: "올리브영 화장품", amount: 32000, type: "expense", category: "personal", proof_type: "신용카드" },
-                        { id: 14, date: "2026-06-09", summary: "퀵서비스 오토바이 배송", amount: 25000, type: "expense", category: "business", proof_type: "증빙없음" },
-                        { id: 15, date: "2026-06-08", summary: "배민커넥트 배달 소득", amount: 150000, type: "income", category: "business", proof_type: "신용카드" },
-                        { id: 16, date: "2026-06-07", summary: "쿠팡이츠 배달 소득", amount: 220000, type: "income", category: "business", proof_type: "신용카드" },
-                        { id: 17, date: "2026-06-06", summary: "다이소 매장 용품", amount: 12000, type: "expense", category: "business", proof_type: "현금영수증" },
-                        { id: 18, date: "2026-06-05", summary: "알바생 주간 급여", amount: 350000, type: "expense", category: "business", proof_type: "현금영수증" },
-                        { id: 19, date: "2026-06-04", summary: "카카오 대리운전 (개인)", amount: 35000, type: "expense", category: "personal", proof_type: "신용카드" },
-                        { id: 20, date: "2026-06-03", summary: "배달의민족 저녁식사 (개인)", amount: 28000, type: "expense", category: "personal", proof_type: "신용카드" }
-                    ];
-                    setLocalTransactions(mock_data);
-                    setTransactions(mock_data);
-                    setDashboard(calculateLocalDashboard(mock_data));
+                    setLocalTransactions(DEFAULT_MOCK_TRANSACTIONS);
+                    setTransactions(DEFAULT_MOCK_TRANSACTIONS);
+                    setDashboard(calculateLocalDashboard(DEFAULT_MOCK_TRANSACTIONS));
                     setIsConnecting(false);
                     setShowConnectModal(true);
                     setIsLinked(true);
@@ -816,7 +821,7 @@
                     potential_amounts.forEach(item => {
                         freqMap[item.amount] = (freqMap[item.amount] || 0) + 1;
                     });
-                    
+
                     potential_amounts.forEach(item => {
                         item.weight += (freqMap[item.amount] - 1) * 50;
                     });
@@ -1257,9 +1262,9 @@
                                                 <img alt="세복이 안내 가림막" className="w-full h-full object-cover" src="/seboki2.png" />
                                             </div>
                                         )}
-                                        {/* 연동시 노출되는 백단 이미지 (위로 2mm 추가 이동) */}
+                                        {/* 연동시 노출되는 백단 이미지 (위로 2mm 추가 이동, 아래로 1.2mm 보정 이동) */}
                                         {currentUser && transactions.length > 0 && (
-                                            <div className="absolute -top-[82px] -right-[4px] z-0 w-[19.5rem] h-[19.5rem] select-none pointer-events-none">
+                                            <div className="absolute -top-[82px] -right-[4px] z-0 w-[19.5rem] h-[19.5rem] select-none pointer-events-none" style={{ transform: 'translateY(1.2mm)' }}>
                                                 <img alt="세복이" className="w-full h-full object-contain" src="/seboki1.png" />
                                             </div>
                                         )}
