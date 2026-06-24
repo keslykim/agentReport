@@ -386,7 +386,7 @@ import random
 
 def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
     """
-    RapidOCR을 사용하여 영수증 이미지 바이트에서 상호명(사용처)과 금액을 로컬에서 추출합니다.
+    RapidOCR을 사용하여 영수증 이미지 바이트에서 상호명(사용처), 금액, 날짜를 로컬에서 추출합니다.
     """
     try:
         from rapidocr_onnxruntime import RapidOCR
@@ -400,7 +400,27 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
         if not lines:
             return None
             
-        # 1. 금액(Amount) 찾기
+        # 1. 날짜(Date) 찾기
+        date_val = None
+        for line in lines:
+            m1 = re.search(r'(\d{4})[-./](\d{2})[-./](\d{2})', line)
+            if m1:
+                date_val = f"{m1.group(1)}-{m1.group(2)}-{m1.group(3)}"
+                break
+            m2 = re.search(r'(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일', line)
+            if m2:
+                date_val = f"{m2.group(1)}-{m2.group(2).zfill(2)}-{m2.group(3).zfill(2)}"
+                break
+            m3 = re.search(r'\b(\d{2})[-./](\d{2})[-./](\d{2})\b', line)
+            if m3:
+                yy = int(m3.group(1))
+                mm = int(m3.group(2))
+                dd = int(m3.group(3))
+                if 10 <= yy <= 99 and 1 <= mm <= 12 and 1 <= dd <= 31:
+                    date_val = f"20{m3.group(1)}-{m3.group(2)}-{m3.group(3)}"
+                    break
+
+        # 2. 금액(Amount) 찾기
         amount = None
         potential_amounts = []
         
@@ -416,6 +436,8 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
                 continue
             if re.search(r'\d{4}[-/.]\d{2}[-/.]\d{2}', line) or "대표자" in line:
                 continue
+            if re.search(r'\d{4}-\d{4}-\d{4}-\d{4}', line) or "카드번호" in line or "승인번호" in line or "매출전표" in line:
+                continue
 
             # 해당 라인에서 숫자 패턴 매칭
             numbers = re.findall(r'\d[\d,.\s]*\d|\d', line)
@@ -425,17 +447,20 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
                     weight = 0
                     # 같은 라인에 total 키워드가 포함된 경우 대폭 우대
                     if any(k in line.lower() for k in total_keywords):
-                        weight += 50
+                        weight += 100
                         # 결제에 직결된 키워드는 가중치 최고점 부여
                         if any(k in line.lower() for k in ["합계", "결제", "총금액", "받을금액", "승인금액", "total"]):
-                            weight += 50
+                            weight += 100
                     # 주변 라인(바로 이전 라인)에 합계/total 키워드가 있었는지 검사
                     if idx > 0 and any(k in lines[idx-1].lower() for k in ["합계", "결제", "총금액", "받을금액", "승인금액", "total"]):
-                        weight += 80
+                        weight += 120
                     
                     # 할인, 부가세, 단가 등 세부 항목 키워드가 섞여 있으면 가중치 감점
                     if any(k in line.lower() for k in minus_keywords):
-                        weight -= 30
+                        weight -= 40
+                    
+                    if "원" in line or "\\" in line or "KRW" in line:
+                        weight += 30
                         
                     potential_amounts.append((clean_num, weight))
         
@@ -444,12 +469,12 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
             potential_amounts.sort(key=lambda x: (x[1], x[0]), reverse=True)
             amount = potential_amounts[0][0]
             
-        # 2. 상호명(Store Name) 찾기
+        # 3. 상호명(Store Name) 찾기
         summary = None
         
         # 우선 순위 1: 명시적인 가맹점명/매장명/상호명 패턴 찾기 (첫 15라인 내에서 탐색)
         for line in lines[:15]:
-            m = re.search(r'(?:가맹점명|가맹점|매장명|상호명|상호|판매점|업체명)\s*[:\]호]?\s*([^\s].*)', line)
+            m = re.search(r'(?:가맹점명|가맹점|매장명|상호명|상호|판매점|업체명|상\s*호|상\s*호\s*명)\s*[:\]호]?\s*([^\s].*)', line)
             if m:
                 candidate = m.group(1).strip()
                 # 불필요한 특수문자 및 괄호쌍 제거 (예: (주)코리아세븐 -> 코리아세븐)
@@ -459,7 +484,19 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
                     summary = candidate
                     break
         
-        # 우선 순위 2: 명시적 패턴이 없는 경우, 첫 6라인 중 필터링을 통과한 첫 번째 라인을 상호명으로 간주
+        # 우선 순위 2: 매장 관련 키워드가 포함된 라인 (첫 8라인)
+        if not summary:
+            store_keywords = ["마트", "식당", "푸드", "커피", "카페", "제과", "헤어", "의원", "약국", "편의점", "코리아", "상사", "유통", "갈비", "한우", "피자", "치킨", "스토어", "올리브영", "다이소", "이마트", "홈플러스", "롯데마트", "CU", "GS25", "세븐일레븐"]
+            for line in lines[:8]:
+                if any(k in line.upper() for k in store_keywords):
+                    if not any(k in line for k in ["전화", "대표", "등록번호", "일자", "주소"]):
+                        cleaned = re.sub(r'[\(\[\{].*?[\)\]\}]', '', line).strip()
+                        cleaned = re.sub(r'주식회사', '', cleaned).strip()
+                        if len(cleaned) >= 2:
+                            summary = cleaned
+                            break
+
+        # 우선 순위 3: 명시적 패턴이 없는 경우, 첫 6라인 중 필터링을 통과한 첫 번째 라인을 상호명으로 간주
         if not summary:
             store_candidates = []
             for line in lines[:6]:
@@ -489,7 +526,8 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
             
         return {
             "summary": summary if summary else "영수증 지출",
-            "amount": amount if amount else 50000
+            "amount": amount if amount else 50000,
+            "date": date_val
         }
     except Exception as e:
         print(f"Local OCR 파싱 실패: {e}")
@@ -526,7 +564,8 @@ async def analyze_receipt_image(file: UploadFile) -> dict:
                                     "Do not add any extra words like '지출 증빙' or general descriptions, just output the pure merchant name. "
                                     "Also extract the total payment amount. "
                                     "Also extract the proof type. The possible values are: '세금계산서', '계산서', '신용카드', '현금영수증', '간이영수증', '증빙없음'. "
-                                    "Response MUST be strictly a JSON object with keys: {\"summary\": \"상호명\", \"amount\": 금액(숫자), \"proof_type\": \"증빙종류\"}. "
+                                    "Also extract the date of transaction in YYYY-MM-DD format. "
+                                    "Response MUST be strictly a JSON object with keys: {\"summary\": \"상호명\", \"amount\": 금액(숫자), \"proof_type\": \"증빙종류\", \"date\": \"YYYY-MM-DD\"}. "
                                     "Do not wrap it in markdown code blocks. Return the raw JSON."
                                 )
                             },
@@ -551,7 +590,8 @@ async def analyze_receipt_image(file: UploadFile) -> dict:
             summary = data.get("summary", "식자재마트")
             amount = int(data.get("amount", 50000))
             proof_type = data.get("proof_type", "신용카드")
-            return {"summary": summary, "amount": amount, "proof_type": proof_type}
+            date_val = data.get("date")
+            return {"summary": summary, "amount": amount, "proof_type": proof_type, "date": date_val}
         except Exception as e:
             print(f"OpenAI Vision API 분석 실패: {e}, 로컬 OCR 분석 진행")
  
@@ -617,7 +657,7 @@ async def analyze_receipt_image(file: UploadFile) -> dict:
     elif "증빙없음" in filename or "무증빙" in filename or "증빙없음" in parsed_summary:
         proof_type = "증빙없음"
         
-    return {"summary": parsed_summary, "amount": amount, "proof_type": proof_type}
+    return {"summary": parsed_summary, "amount": amount, "proof_type": proof_type, "date": ocr_result.get("date") if ocr_result else None}
 
 
 from typing import List
@@ -638,13 +678,14 @@ async def upload_receipts(
         parsed_summary = analysis["summary"]
         amount = analysis["amount"]
         proof_type = analysis.get("proof_type", "신용카드")
+        parsed_date = analysis.get("date") or today_str
             
         category = classify_transaction(parsed_summary, amount)
         category_kr = "사업용 (절세 대상)" if category == "business" else "개인용 (공제 제외)"
         
         results.append({
             "filename": file.filename,
-            "date": today_str,
+            "date": parsed_date,
             "summary": parsed_summary,
             "amount": amount,
             "type": "expense",
