@@ -743,15 +743,42 @@
                 if (lines.length === 0) return null;
 
                 let amount = null;
+                let date = null;
                 let potential_amounts = [];
 
                 const total_keywords = ["합계", "결제금액", "합 계", "총금액", "받을금액", "승인금액", "총계", "금액", "원", "total", "amount", "charge", "pay"];
                 const minus_keywords = ["부가세", "과세", "면세", "할인", "거스름", "받은금액", "과세물품", "세액", "단가", "수량"];
 
+                // 1. Date extraction
+                for (let line of lines) {
+                    const match1 = line.match(/(\d{4})[-./](\d{2})[-./](\d{2})/);
+                    if (match1) {
+                        date = `${match1[1]}-${match1[2]}-${match1[3]}`;
+                        break;
+                    }
+                    const match2 = line.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+                    if (match2) {
+                        date = `${match2[1]}-${match2[2].padStart(2, '0')}-${match2[3].padStart(2, '0')}`;
+                        break;
+                    }
+                    const match3 = line.match(/\b(\d{2})[-./](\d{2})[-./](\d{2})\b/);
+                    if (match3) {
+                        const yy = parseInt(match3[1]);
+                        const mm = parseInt(match3[2]);
+                        const dd = parseInt(match3[3]);
+                        if (yy >= 10 && yy <= 99 && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+                            date = `20${match3[1]}-${match3[2]}-${match3[3]}`;
+                            break;
+                        }
+                    }
+                }
+
+                // 2. Amount extraction
                 lines.forEach((line, idx) => {
                     if (/\d{3}-\d{2}-\d{5}/.test(line) || line.includes("등록번호")) return;
                     if (/\d{2,4}-\d{3,4}-\d{4}/.test(line) || line.includes("전화") || line.includes("Tel") || line.includes("T.")) return;
                     if (/\d{4}[-/.]\d{2}[-/.]\d{2}/.test(line) || line.includes("대표자")) return;
+                    if (/\d{4}-\d{4}-\d{4}-\d{4}/.test(line) || line.includes("카드번호") || line.includes("승인번호") || line.includes("매출전표")) return;
 
                     const numbers = line.match(/\d[\d,.\s]*\d|\d/g);
                     if (numbers) {
@@ -760,16 +787,19 @@
                             if (clean_num >= 100 && clean_num <= 10000000) {
                                 let weight = 0;
                                 if (total_keywords.some(k => line.toLowerCase().includes(k))) {
-                                    weight += 50;
+                                    weight += 100;
                                     if (["합계", "결제", "총금액", "받을금액", "승인금액", "total"].some(k => line.toLowerCase().includes(k))) {
-                                        weight += 50;
+                                        weight += 100;
                                     }
                                 }
                                 if (idx > 0 && ["합계", "결제", "총금액", "받을금액", "승인금액", "total"].some(k => lines[idx - 1].toLowerCase().includes(k))) {
-                                    weight += 80;
+                                    weight += 120;
                                 }
                                 if (minus_keywords.some(k => line.toLowerCase().includes(k))) {
-                                    weight -= 30;
+                                    weight -= 40;
+                                }
+                                if (line.includes("원") || line.includes("\\") || line.includes("KRW")) {
+                                    weight += 30;
                                 }
                                 potential_amounts.push({ amount: clean_num, weight: weight });
                             }
@@ -785,10 +815,11 @@
                     amount = potential_amounts[0].amount;
                 }
 
+                // 3. Merchant Name extraction
                 let summary = null;
-                // Priority 1: explicitly stated merchant name (first 15 lines)
+                // Priority 1: Explicit keyword matching (first 15 lines)
                 for (let line of lines.slice(0, 15)) {
-                    const match = line.match(/(?:가맹점명|가맹점|매장명|상호명|상호|판매점|업체명)\s*[:\]호]?\s*([^\s].*)/);
+                    const match = line.match(/(?:가맹점명|가맹점|매장명|상호명|상호|판매점|업체명|상\s*호|상\s*호\s*명)\s*[:\]호]?\s*([^\s].*)/);
                     if (match) {
                         let candidate = match[1].trim();
                         candidate = candidate.replace(/[\(\[\{].*?[\)\]\}]/g, '').trim();
@@ -800,7 +831,24 @@
                     }
                 }
 
-                // Priority 2: first clean non-number line (first 6 lines)
+                // Priority 2: Common store name suffixes (first 8 lines)
+                if (!summary) {
+                    const store_keywords = ["마트", "식당", "푸드", "커피", "카페", "제과", "헤어", "의원", "약국", "편의점", "코리아", "상사", "유통", "갈비", "한우", "피자", "치킨", "스토어", "올리브영", "다이소", "이마트", "홈플러스", "롯데마트", "CU", "GS25", "세븐일레븐"];
+                    for (let line of lines.slice(0, 8)) {
+                        if (store_keywords.some(k => line.toUpperCase().includes(k.toUpperCase()))) {
+                            if (!["전화", "대표", "등록번호", "일자", "주소"].some(k => line.includes(k))) {
+                                let cleaned = line.replace(/[\(\[\{].*?[\)\]\}]/g, '').trim();
+                                cleaned = cleaned.replace(/주식회사/g, '').trim();
+                                if (cleaned.length >= 2) {
+                                    summary = cleaned;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Priority 3: first clean non-number line (first 6 lines)
                 if (!summary) {
                     let store_candidates = [];
                     for (let line of lines.slice(0, 6)) {
@@ -823,7 +871,7 @@
                     }
                 }
 
-                return { summary, amount };
+                return { summary, amount, date };
             };
 
             const triggerReceiptUpload = () => {
@@ -862,6 +910,7 @@
                         const filename = file.name;
                         let parsed_summary = "";
                         let amount = null;
+                        let parsed_date = null;
 
                         if (typeof Tesseract !== 'undefined') {
                             const ocrText = await performLocalOcr(file);
@@ -869,6 +918,7 @@
                             if (parsed) {
                                 parsed_summary = parsed.summary || "";
                                 amount = parsed.amount;
+                                parsed_date = parsed.date;
                             }
                         }
 
@@ -915,7 +965,7 @@
 
                         results.push({
                             filename: filename,
-                            date: today_str,
+                            date: parsed_date || today_str,
                             summary: parsed_summary,
                             amount: amount,
                             type: "expense",
@@ -1030,17 +1080,17 @@
             return (
                 <div className="flex-grow flex flex-col min-h-screen">
                     {/* Header */}
-                    <header className="shadow-sm bg-surface-container-lowest sticky top-0 z-40 border-b border-outline-variant">
+                    <header className="shadow-sm bg-surface-container-lowest sticky top-0 z-40 border-b border-outline-variant no-print">
                         <div className="flex justify-between items-center w-full px-4 md:px-8 h-[72px] max-w-[1200px] mx-auto">
-                            <div className="font-bold text-2xl text-primary cursor-pointer flex items-center gap-2" onClick={() => setActiveView('dashboard')}>
+                            <div className="font-bold text-primary cursor-pointer flex items-center gap-2" style={{ fontSize: '29px' }} onClick={() => setActiveView('dashboard')}>
                                 <span className="material-symbols-outlined font-bold text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>calculate</span>
                                 소상공인 1초 세금비서
                             </div>
                             <nav className="hidden md:flex items-center gap-8">
-                                <a className={`${activeView === 'dashboard' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} href="#" onClick={(e) => { e.preventDefault(); if (!isLoggedIn) { alert("로그인이 필요합니다."); window.location.href = "/html/login.html"; return; } setActiveView('dashboard'); }}>홈</a>
-                                <a className="text-on-surface-variant hover:text-primary transition-colors font-medium" href="#ledger" onClick={(e) => { e.preventDefault(); if (!isLoggedIn) { alert("로그인이 필요합니다."); window.location.href = "/html/login.html"; return; } setActiveView('dashboard'); setShowLedger(true); setTimeout(() => { document.getElementById('ledger')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }}>장부내역</a>
-                                <a className={`${activeView === 'tax-filing' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} href="#" onClick={(e) => { e.preventDefault(); if (!isLoggedIn) { alert("로그인이 필요합니다."); window.location.href = "/html/login.html"; return; } setActiveView('tax-filing'); setFilingStep(1); }}>세금신고</a>
-                                <a className={`${activeView === 'customer-center' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} href="#" onClick={(e) => { e.preventDefault(); if (!isLoggedIn) { alert("로그인이 필요합니다."); window.location.href = "/html/login.html"; return; } setActiveView('customer-center'); }}>고객센터</a>
+                                <a className={`${activeView === 'dashboard' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} style={{ fontSize: '19px' }} href="#" onClick={(e) => { e.preventDefault(); if (!isLoggedIn) { alert("로그인이 필요합니다."); window.location.href = "/html/login.html"; return; } setActiveView('dashboard'); }}>홈</a>
+                                <a className="text-on-surface-variant hover:text-primary transition-colors font-medium" style={{ fontSize: '19px' }} href="#ledger" onClick={(e) => { e.preventDefault(); if (!isLoggedIn) { alert("로그인이 필요합니다."); window.location.href = "/html/login.html"; return; } setActiveView('dashboard'); setShowLedger(true); setTimeout(() => { document.getElementById('ledger')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }}>장부내역</a>
+                                <a className={`${activeView === 'tax-filing' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} style={{ fontSize: '19px' }} href="#" onClick={(e) => { e.preventDefault(); if (!isLoggedIn) { alert("로그인이 필요합니다."); window.location.href = "/html/login.html"; return; } setActiveView('tax-filing'); setFilingStep(1); }}>세금신고</a>
+                                <a className={`${activeView === 'customer-center' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} style={{ fontSize: '19px' }} href="#" onClick={(e) => { e.preventDefault(); if (!isLoggedIn) { alert("로그인이 필요합니다."); window.location.href = "/html/login.html"; return; } setActiveView('customer-center'); }}>고객센터</a>
                             </nav>
                             <div className="flex items-center gap-4">
                                 {isLoggedIn && (
@@ -1460,7 +1510,7 @@
                             /* Tax Filing View */
                             <section className="animate-in fade-in slide-in-from-bottom-4 duration-300 flex flex-col gap-8">
                                 {/* Title and period select */}
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline-variant pb-6">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline-variant pb-6 no-print">
                                     <div>
                                         <h2 className="text-3xl font-black text-primary tracking-tight">세금 간편 전자 신고</h2>
                                         <p className="text-on-surface-variant mt-2 text-base">
@@ -1480,7 +1530,7 @@
                                 </div>
 
                                 {/* Step Progress Stepper */}
-                                <div className="bg-surface-container-lowest rounded-2xl p-6 shadow-md border border-outline-variant">
+                                <div className="bg-surface-container-lowest rounded-2xl p-6 shadow-md border border-outline-variant no-print">
                                     <div className="flex justify-between items-center max-w-[600px] mx-auto relative">
                                         {/* Background Line */}
                                         <div className="absolute top-1/2 left-0 right-0 h-1 bg-surface-container-high -translate-y-1/2 z-0"></div>
@@ -1724,10 +1774,10 @@
 
                                     {filingStep === 3 && lastFilingResult && (
                                         <div className="flex flex-col items-center gap-6 py-6">
-                                            <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center shadow-md animate-bounce">
+                                            <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center shadow-md animate-bounce no-print">
                                                 <span className="material-symbols-outlined text-4xl font-black">done</span>
                                             </div>
-                                            <div className="text-center">
+                                            <div className="text-center no-print">
                                                 <h3 className="text-2xl font-black text-on-surface">세금 신고가 성공적으로 완료되었습니다!</h3>
                                                 <p className="text-on-surface-variant text-base mt-2">
                                                     신고서가 국세청 홈택스에 전송되었으며 아래와 같이 전자 접수증이 발급되었습니다.
@@ -1735,7 +1785,7 @@
                                             </div>
 
                                             {/* Tax Receipt (Government style) */}
-                                            <div className="w-full max-w-[500px] border-2 border-double border-primary p-6 bg-white shadow-xl rounded-xl space-y-6 relative overflow-hidden">
+                                            <div id="print-receipt-section" className="w-full max-w-[500px] border-2 border-double border-primary p-6 bg-white shadow-xl rounded-xl space-y-6 relative overflow-hidden">
                                                 {/* Watermark Logo */}
                                                 <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] select-none pointer-events-none">
                                                     <span className="material-symbols-outlined text-[200px] font-black text-primary">calculate</span>
@@ -1743,7 +1793,9 @@
 
                                                 <div className="text-center border-b-2 border-primary/20 pb-4">
                                                     <span className="text-xs font-bold text-primary tracking-widest border border-primary px-2.5 py-0.5 rounded-full">국세청 전자신고</span>
-                                                    <h4 className="text-2xl font-black text-primary mt-2">부가가치세 신고 접수증</h4>
+                                                    <h4 className="text-2xl font-black text-primary mt-2">
+                                                        {filingForm.period.includes("종합소득세") ? "종합소득세 신고 접수증" : "부가가치세 신고 접수증"}
+                                                    </h4>
                                                 </div>
 
                                                 <div className="space-y-3.5 text-sm text-on-surface">
@@ -1787,7 +1839,7 @@
                                                 </div>
                                             </div>
 
-                                            <div className="flex gap-4 w-full justify-center mt-4">
+                                            <div className="flex gap-4 w-full justify-center mt-4 no-print">
                                                 <button
                                                     onClick={() => {
                                                         setActiveView('dashboard');
@@ -1808,7 +1860,7 @@
                                 </div>
 
                                 {/* Tax Filing History List */}
-                                <div className="bg-surface-container-lowest rounded-2xl shadow-md p-6 md:p-8 border border-outline-variant">
+                                <div className="bg-surface-container-lowest rounded-2xl shadow-md p-6 md:p-8 border border-outline-variant no-print">
                                     <h3 className="text-2xl font-bold text-on-surface flex items-center gap-2 mb-6">
                                         <span className="material-symbols-outlined text-primary">history</span>
                                         과거 세금 신고 내역 및 접수 현황
@@ -2328,7 +2380,7 @@
                     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end group">
                         {/* 챗봇 대화창 */}
                         {showChatbot && (
-                            <div className="w-[380px] max-w-[calc(100vw-2rem)] h-[520px] max-h-[70vh] bg-white rounded-2xl shadow-2xl border border-outline-variant flex flex-col overflow-hidden mb-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
+                            <div className="w-[456px] max-w-[calc(100vw-2rem)] h-[624px] max-h-[70vh] bg-white rounded-2xl shadow-2xl border border-outline-variant flex flex-col overflow-hidden mb-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
                                 {/* Header */}
                                 <div className="bg-primary text-white p-4 flex justify-between items-center shrink-0">
                                     <div className="flex items-center gap-2.5">
@@ -2356,7 +2408,7 @@
                                                     <img src="/chat_icon.png" alt="세복이" className="w-full h-full object-contain" />
                                                 </div>
                                             )}
-                                            <div className={`p-3 text-base max-w-[75%] leading-relaxed whitespace-pre-line ${msg.sender === 'user'
+                                            <div className={`p-3.5 text-[19px] max-w-[75%] leading-relaxed whitespace-pre-line ${msg.sender === 'user'
                                                 ? 'bg-primary text-white rounded-2xl rounded-tr-none shadow-sm'
                                                 : 'bg-white text-on-surface rounded-2xl rounded-tl-none border border-outline-variant shadow-sm'
                                                 }`}>
@@ -2369,7 +2421,7 @@
                                             <div className="w-8 h-8 rounded-full bg-white p-0.5 border border-outline-variant overflow-hidden shrink-0 animate-pulse">
                                                 <img src="/chat_icon.png" alt="세복이" className="w-full h-full object-contain" />
                                             </div>
-                                            <div className="bg-white text-on-surface p-3 rounded-2xl rounded-tl-none border border-outline-variant shadow-sm flex items-center gap-1">
+                                            <div className="bg-white text-on-surface p-3.5 rounded-2xl rounded-tl-none border border-outline-variant shadow-sm flex items-center gap-1">
                                                 <div className="w-1.5 h-1.5 bg-outline rounded-full animate-bounce"></div>
                                                 <div className="w-1.5 h-1.5 bg-outline rounded-full animate-bounce delay-75"></div>
                                                 <div className="w-1.5 h-1.5 bg-outline rounded-full animate-bounce delay-150"></div>
@@ -2402,10 +2454,10 @@
                         {/* 플로팅 버튼 영역 */}
                         <div className="relative flex items-center">
                             {/* 말풍선 툴팁 */}
-                            <div className={`absolute right-[98px] whitespace-nowrap bg-white text-black text-[14px] font-normal py-2 px-3.5 rounded-xl shadow-xl pointer-events-none transition-opacity duration-200 border border-outline-variant z-50 ${showChatbot ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+                            <div className={`absolute right-[140px] whitespace-nowrap bg-white text-black text-[17px] font-normal py-[10px] px-[17px] rounded-xl shadow-xl pointer-events-none transition-opacity duration-200 border border-outline-variant z-50 ${showChatbot ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
                                 챗봇 '세복이'에게 물어보세요
                                 {/* 말풍선 꼬리 */}
-                                <div className="absolute right-[-5px] top-1/2 -translate-y-1/2 w-2 h-2 bg-white rotate-45 border-t border-r border-outline-variant"></div>
+                                <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rotate-45 border-t border-r border-outline-variant"></div>
                             </div>
                             <button
                                 onClick={() => {
@@ -2416,7 +2468,7 @@
                                     }
                                     setShowChatbot(!showChatbot);
                                 }}
-                                className="w-[84px] h-[84px] rounded-full bg-gradient-to-tr from-sky-50 to-blue-100 hover:from-sky-100 hover:to-blue-200 text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-105 active:scale-95 border-2 border-white p-2.5 overflow-hidden">
+                                className="w-[126px] h-[126px] rounded-full bg-gradient-to-tr from-sky-50 to-blue-100 hover:from-sky-100 hover:to-blue-200 text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-105 active:scale-95 border-2 border-white p-2.5 overflow-hidden">
                                 <img src="/chat_icon.png" alt="세복이 챗봇 버튼" className="w-full h-full object-contain" />
                             </button>
                         </div>
