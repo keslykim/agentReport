@@ -917,18 +917,18 @@ function App() {
     return (
         <div className="flex-grow flex flex-col min-h-screen">
             {/* Header (TopNavBar) */}
-            <header className="shadow-sm bg-surface-container-lowest sticky top-0 z-40 border-b border-outline-variant">
+            <header className="shadow-sm bg-surface-container-lowest sticky top-0 z-40 border-b border-outline-variant no-print">
                 <div className="flex justify-between items-center w-full px-4 md:px-8 h-[72px] max-w-[1200px] mx-auto">
-                    <div className="font-bold text-2xl text-primary cursor-pointer flex items-center gap-2" onClick={() => setActiveView('dashboard')}>
+                    <div className="font-bold text-primary cursor-pointer flex items-center gap-2" style={{ fontSize: '29px' }} onClick={() => setActiveView('dashboard')}>
                         <span className="material-symbols-outlined font-bold text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>calculate</span>
                         소상공인 1초 세금비서
                     </div>
                     {/* Navigation Links */}
                     <nav className="hidden md:flex items-center gap-8">
-                        <a className={`${activeView === 'dashboard' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} href="#" onClick={(e) => { e.preventDefault(); setActiveView('dashboard'); }}>홈</a>
-                        <a className="text-on-surface-variant hover:text-primary transition-colors font-medium" href="#ledger" onClick={(e) => { e.preventDefault(); setActiveView('dashboard'); setShowLedger(true); setTimeout(() => { document.getElementById('ledger')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }}>장부내역</a>
-                        <a className={`${activeView === 'tax-filing' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} href="#" onClick={(e) => { e.preventDefault(); setActiveView('tax-filing'); setFilingStep(1); }}>세금신고</a>
-                        <a className={`${activeView === 'customer-center' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} href="#" onClick={(e) => { e.preventDefault(); setActiveView('customer-center'); }}>고객센터</a>
+                        <a className={`${activeView === 'dashboard' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} style={{ fontSize: '19px' }} href="#" onClick={(e) => { e.preventDefault(); setActiveView('dashboard'); }}>홈</a>
+                        <a className="text-on-surface-variant hover:text-primary transition-colors font-medium" style={{ fontSize: '19px' }} href="#ledger" onClick={(e) => { e.preventDefault(); setActiveView('dashboard'); setShowLedger(true); setTimeout(() => { document.getElementById('ledger')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }}>장부내역</a>
+                        <a className={`${activeView === 'tax-filing' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} style={{ fontSize: '19px' }} href="#" onClick={(e) => { e.preventDefault(); setActiveView('tax-filing'); setFilingStep(1); }}>세금신고</a>
+                        <a className={`${activeView === 'customer-center' ? 'text-primary font-bold border-b-2 border-primary pb-1' : 'text-on-surface-variant hover:text-primary'} transition-colors font-medium`} style={{ fontSize: '19px' }} href="#" onClick={(e) => { e.preventDefault(); setActiveView('customer-center'); }}>고객센터</a>
                     </nav>
                     {/* Trailing Actions */}
                     <div className="flex items-center gap-4">
@@ -1235,7 +1235,7 @@ function App() {
                 ) : activeView === 'tax-filing' ? (
                     /* Tax Filing View */
                     <section className="animate-in fade-in slide-in-from-bottom-4 duration-300 flex flex-col gap-8">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline-variant pb-6">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline-variant pb-6 no-print">
                             <div>
                                 <h2 className="text-3xl font-black text-primary tracking-tight">세금 간편 전자 신고</h2>
                                 <p className="text-on-surface-variant mt-2 text-base">
@@ -1254,7 +1254,7 @@ function App() {
                             </div>
                         </div>
 
-                        <div className="bg-surface-container-lowest rounded-2xl p-6 shadow-md border border-outline-variant">
+                        <div className="bg-surface-container-lowest rounded-2xl p-6 shadow-md border border-outline-variant no-print">
                             <div className="flex justify-between items-center max-w-[600px] mx-auto relative">
                                 <div className="absolute top-1/2 left-0 right-0 h-1 bg-surface-container-high -translate-y-1/2 z-0"></div>
                                 <div
@@ -1478,24 +1478,26 @@ function App() {
 
                             {filingStep === 3 && lastFilingResult && (
                                 <div className="flex flex-col items-center gap-6 py-6">
-                                    <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center shadow-md animate-bounce">
+                                    <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center shadow-md animate-bounce no-print">
                                         <span className="material-symbols-outlined text-4xl font-black">done</span>
                                     </div>
-                                    <div className="text-center">
+                                    <div className="text-center no-print">
                                         <h3 className="text-2xl font-black text-on-surface">세금 신고가 성공적으로 완료되었습니다!</h3>
                                         <p className="text-on-surface-variant text-base mt-2">
                                             신고서가 국세청 홈택스에 전송되었으며 아래와 같이 전자 접수증이 발급되었습니다.
                                         </p>
                                     </div>
 
-                                    <div className="w-full max-w-[500px] border-2 border-double border-primary p-6 bg-white shadow-xl rounded-xl space-y-6 relative overflow-hidden">
+                                    <div id="print-receipt-section" className="w-full max-w-[500px] border-2 border-double border-primary p-6 bg-white shadow-xl rounded-xl space-y-6 relative overflow-hidden">
                                         <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] select-none pointer-events-none">
                                             <span className="material-symbols-outlined text-[200px] font-black text-primary">calculate</span>
                                         </div>
 
                                         <div className="text-center border-b-2 border-primary/20 pb-4">
                                             <span className="text-xs font-bold text-primary tracking-widest border border-primary px-2.5 py-0.5 rounded-full">국세청 전자신고</span>
-                                            <h4 className="text-2xl font-black text-primary mt-2">부가가치세 신고 접수증</h4>
+                                            <h4 className="text-2xl font-black text-primary mt-2">
+                                                {filingForm.period.includes("종합소득세") ? "종합소득세 신고 접수증" : "부가가치세 신고 접수증"}
+                                            </h4>
                                         </div>
 
                                         <div className="space-y-3.5 text-sm text-on-surface">
@@ -1539,7 +1541,7 @@ function App() {
                                         </div>
                                     </div>
 
-                                    <div className="flex gap-4 w-full justify-center mt-4">
+                                    <div className="flex gap-4 w-full justify-center mt-4 no-print">
                                         <button
                                             onClick={() => {
                                                 setActiveView('dashboard');
@@ -1560,7 +1562,7 @@ function App() {
                         </div>
 
                         {/* Tax Filing History List */}
-                        <div className="bg-surface-container-lowest rounded-2xl shadow-md p-6 md:p-8 border border-outline-variant">
+                        <div className="bg-surface-container-lowest rounded-2xl shadow-md p-6 md:p-8 border border-outline-variant no-print">
                             <h3 className="text-2xl font-bold text-on-surface flex items-center gap-2 mb-6">
                                 <span className="material-symbols-outlined text-primary">history</span>
                                 과거 세금 신고 내역 및 접수 현황
@@ -2083,7 +2085,7 @@ function App() {
             {/* Chatbot Floating Area */}
             <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end group">
                 {showChatbot && (
-                    <div className="w-[380px] max-w-[calc(100vw-2rem)] h-[520px] max-h-[70vh] bg-white rounded-2xl shadow-2xl border border-outline-variant flex flex-col overflow-hidden mb-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
+                    <div className="w-[456px] max-w-[calc(100vw-2rem)] h-[624px] max-h-[70vh] bg-white rounded-2xl shadow-2xl border border-outline-variant flex flex-col overflow-hidden mb-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
                         <div className="bg-primary text-white p-4 flex justify-between items-center shrink-0">
                             <div className="flex items-center gap-2.5">
                                 <div className="w-8 h-8 rounded-full bg-white p-0.5 overflow-hidden">
@@ -2109,7 +2111,7 @@ function App() {
                                             <img src="/chat_icon.png" alt="세복이" className="w-full h-full object-contain" />
                                         </div>
                                     )}
-                                    <div className={`p-3 text-base max-w-[75%] leading-relaxed whitespace-pre-line ${msg.sender === 'user'
+                                    <div className={`p-3.5 text-[19px] max-w-[75%] leading-relaxed whitespace-pre-line ${msg.sender === 'user'
                                         ? 'bg-primary text-white rounded-2xl rounded-tr-none shadow-sm'
                                         : 'bg-white text-on-surface rounded-2xl rounded-tl-none border border-outline-variant shadow-sm'
                                         }`}>
@@ -2122,7 +2124,7 @@ function App() {
                                     <div className="w-8 h-8 rounded-full bg-white p-0.5 border border-outline-variant overflow-hidden shrink-0 animate-pulse">
                                         <img src="/chat_icon.png" alt="세복이" className="w-full h-full object-contain" />
                                     </div>
-                                    <div className="bg-white text-on-surface p-3 rounded-2xl rounded-tl-none border border-outline-variant shadow-sm flex items-center gap-1">
+                                    <div className="bg-white text-on-surface p-3.5 rounded-2xl rounded-tl-none border border-outline-variant shadow-sm flex items-center gap-1">
                                         <div className="w-1.5 h-1.5 bg-outline rounded-full animate-bounce"></div>
                                         <div className="w-1.5 h-1.5 bg-outline rounded-full animate-bounce delay-75"></div>
                                         <div className="w-1.5 h-1.5 bg-outline rounded-full animate-bounce delay-150"></div>
@@ -2152,13 +2154,13 @@ function App() {
                 )}
 
                 <div className="relative flex items-center">
-                    <div className={`absolute right-[98px] whitespace-nowrap bg-white text-black text-[14px] font-normal py-2 px-3.5 rounded-xl shadow-xl pointer-events-none transition-opacity duration-200 border border-outline-variant z-50 ${showChatbot ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <div className={`absolute right-[140px] whitespace-nowrap bg-white text-black text-[17px] font-normal py-[10px] px-[17px] rounded-xl shadow-xl pointer-events-none transition-opacity duration-200 border border-outline-variant z-50 ${showChatbot ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
                         챗봇 '세복이'에게 물어보세요
-                        <div className="absolute right-[-5px] top-1/2 -translate-y-1/2 w-2 h-2 bg-white rotate-45 border-t border-r border-outline-variant"></div>
+                        <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rotate-45 border-t border-r border-outline-variant"></div>
                     </div>
                     <button
                         onClick={() => setShowChatbot(!showChatbot)}
-                        className="w-[84px] h-[84px] rounded-full bg-gradient-to-tr from-sky-50 to-blue-100 hover:from-sky-100 hover:to-blue-200 text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-105 active:scale-95 border-2 border-white p-2.5 overflow-hidden">
+                        className="w-[126px] h-[126px] rounded-full bg-gradient-to-tr from-sky-50 to-blue-100 hover:from-sky-100 hover:to-blue-200 text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-105 active:scale-95 border-2 border-white p-2.5 overflow-hidden">
                         <img src="/chat_icon.png" alt="세복이 챗봇 버튼" className="w-full h-full object-contain" />
                     </button>
                 </div>
