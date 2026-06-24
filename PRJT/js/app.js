@@ -531,7 +531,8 @@ function App() {
         }
 
         const taxableIncome = Math.max(0, revenue - expense);
-        const calculatedTax = Math.max(0, Math.round(taxableIncome * 0.1));
+        //const calculatedTax = Math.max(0, Math.round(taxableIncome * 0.1));
+        const calculatedTax = dashboard.total_estimated_tax;
 
         return { revenue, expense, taxableIncome, calculatedTax };
     };
@@ -673,7 +674,7 @@ function App() {
             potential_amounts.forEach(item => {
                 freqMap[item.amount] = (freqMap[item.amount] || 0) + 1;
             });
-            
+
             potential_amounts.forEach(item => {
                 item.weight += (freqMap[item.amount] - 1) * 50;
             });
