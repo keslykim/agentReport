@@ -430,6 +430,8 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
 
         for idx, line in enumerate(lines):
             # 사업자등록번호, 전화번호, 날짜 등이 포함된 라인은 금액 추출에서 제외
+            if "*" in line:
+                continue
             if re.search(r'\d{3}-\d{2}-\d{5}', line) or "등록번호" in line:
                 continue
             if re.search(r'\d{2,4}-\d{3,4}-\d{4}', line) or "전화" in line or "Tel" in line or "T." in line:
@@ -442,7 +444,10 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
             # 해당 라인에서 숫자 패턴 매칭
             numbers = re.findall(r'\d[\d,.\s]*\d|\d', line)
             for num_str in numbers:
-                clean_num = int(re.sub(r'[^\d]', '', num_str))
+                digits_only = re.sub(r'[^\d]', '', num_str)
+                if digits_only.startswith('0'):
+                    continue
+                clean_num = int(digits_only)
                 if 100 <= clean_num <= 10000000:
                     weight = 0
                     # 같은 라인에 total 키워드가 포함된 경우 대폭 우대
@@ -465,9 +470,19 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
                     potential_amounts.append((clean_num, weight))
         
         if potential_amounts:
+            # 빈도수 계산하여 여러 번 등장하는 금액에 가중치 보너스 부여
+            freq_map = {}
+            for num, _ in potential_amounts:
+                freq_map[num] = freq_map.get(num, 0) + 1
+            
+            weighted_amounts = []
+            for num, weight in potential_amounts:
+                freq_bonus = (freq_map[num] - 1) * 50
+                weighted_amounts.append((num, weight + freq_bonus))
+            
             # 가중치가 높은 순서로 정렬하고, 가중치가 같다면 더 큰 금액을 우선
-            potential_amounts.sort(key=lambda x: (x[1], x[0]), reverse=True)
-            amount = potential_amounts[0][0]
+            weighted_amounts.sort(key=lambda x: (x[1], x[0]), reverse=True)
+            amount = weighted_amounts[0][0]
             
         # 3. 상호명(Store Name) 찾기
         summary = None
@@ -486,7 +501,7 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
         
         # 우선 순위 2: 매장 관련 키워드가 포함된 라인 (첫 8라인)
         if not summary:
-            store_keywords = ["마트", "식당", "푸드", "커피", "카페", "제과", "헤어", "의원", "약국", "편의점", "코리아", "상사", "유통", "갈비", "한우", "피자", "치킨", "스토어", "올리브영", "다이소", "이마트", "홈플러스", "롯데마트", "CU", "GS25", "세븐일레븐"]
+            store_keywords = ["농협", "하나로마트", "축협", "수협", "신협", "이마트24", "마트", "식당", "푸드", "커피", "카페", "제과", "헤어", "의원", "약국", "편의점", "코리아", "상사", "유통", "갈비", "한우", "피자", "치킨", "스토어", "올리브영", "다이소", "이마트", "홈플러스", "롯데마트", "CU", "GS25", "세븐일레븐"]
             for line in lines[:8]:
                 if any(k in line.upper() for k in store_keywords):
                     if not any(k in line for k in ["전화", "대표", "등록번호", "일자", "주소"]):
@@ -518,12 +533,19 @@ def extract_receipt_details_ocr(file_bytes: bytes) -> dict:
                 # 불필요한 주식회사 접두사/접미사 등 정제
                 cleaned = re.sub(r'[\(\[\{].*?[\)\]\}]', '', line).strip()
                 cleaned = re.sub(r'주식회사', '', cleaned).strip()
-                if len(cleaned) >= 2:
+                if len(cleaned) >= 2 and re.search(r'[가-힣]', cleaned):
                     store_candidates.append(cleaned)
                 
             if store_candidates:
                 summary = store_candidates[0]
             
+        full_text = "\n".join(lines)
+        if summary:
+            if ("fad" in summary.lower() or summary.lower() == "fad") and ("nonghyup" in full_text.lower() or "농협" in full_text):
+                summary = re.sub(r'FAD', '농협', summary, flags=re.IGNORECASE)
+        if not summary and ("nonghyup" in full_text.lower() or "농협" in full_text):
+            summary = "농협"
+
         return {
             "summary": summary if summary else "영수증 지출",
             "amount": amount if amount else 50000,
@@ -560,8 +582,9 @@ async def analyze_receipt_image(file: UploadFile) -> dict:
                             {
                                 "type": "text",
                                 "text": (
-                                    "Analyze this receipt image. Extract the exact business/store/merchant name (사용처 또는 상호명, e.g., '스타벅스', '이마트', 'SK에너지 주유소'). "
-                                    "Do not add any extra words like '지출 증빙' or general descriptions, just output the pure merchant name. "
+                                    "Analyze this receipt image. Extract the exact business/store/merchant name (사용처 또는 상호명, e.g., '스타벅스', '이마트', '농협', 'SK에너지 주유소'). "
+                                    "Note: If the receipt is from Nonghyup (농협) or has the Nonghyup bovine logo (which is sometimes misread as 'FAD' or similar), the merchant name should be '농협'. "
+                                    "Do not add any extra words like '지출 증빙' or general descriptions, just output the pure merchant name in Korean. "
                                     "Also extract the total payment amount. "
                                     "Also extract the proof type. The possible values are: '세금계산서', '계산서', '신용카드', '현금영수증', '간이영수증', '증빙없음'. "
                                     "Also extract the date of transaction in YYYY-MM-DD format. "
@@ -588,6 +611,9 @@ async def analyze_receipt_image(file: UploadFile) -> dict:
                     result_text = result_text[4:]
             data = json.loads(result_text.strip())
             summary = data.get("summary", "식자재마트")
+            if summary:
+                if "fad" in summary.lower() or summary.lower() == "fad":
+                    summary = re.sub(r'FAD', '농협', summary, flags=re.IGNORECASE)
             amount = int(data.get("amount", 50000))
             proof_type = data.get("proof_type", "신용카드")
             date_val = data.get("date")
