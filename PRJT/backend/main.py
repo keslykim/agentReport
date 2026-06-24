@@ -2,8 +2,9 @@ import os
 import sqlite3
 import time
 import re
+import hashlib
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -18,6 +19,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_DIR = os.path.join(BASE_DIR, "db")
 os.makedirs(DB_DIR, exist_ok=True)
 DB_FILE = os.path.join(DB_DIR, "tax_assistant.db")
+USER_DB_FILE = os.path.join(DB_DIR, "users.db")
 
 # 데이터베이스 초기화 함수
 def init_db():
@@ -57,6 +59,35 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+
+    # 회원 데이터베이스 초기화
+    conn_user = sqlite3.connect(USER_DB_FILE)
+    cursor_user = conn_user.cursor()
+    # 회원 테이블 추가
+    cursor_user.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            business_reg_no TEXT UNIQUE NOT NULL,
+            business_name TEXT NOT NULL,
+            representative TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+    conn_user.commit()
+
+    # 데모용 기본 사용자 등록 (비어있을 경우)
+    cursor_user.execute("SELECT COUNT(*) FROM users")
+    if cursor_user.fetchone()[0] == 0:
+        demo_pwd_hash = hashlib.sha256("password123!".encode('utf-8')).hexdigest()
+        cursor_user.execute("""
+            INSERT INTO users (business_reg_no, business_name, representative, email, password, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, ("124-45-67890", "세복상회", "김대표", "ceo@example.com", demo_pwd_hash, "2026-06-24 00:00:00"))
+        conn_user.commit()
+
+    conn_user.close()
 
 init_db()
 
@@ -752,6 +783,77 @@ def post_chatbot(query: ChatbotQuery):
         
     return {"answer": matched_answer}
 
+class UserSignup(BaseModel):
+    business_reg_no: str
+    business_name: str
+    representative: str
+    email: str
+    password: str
+
+class UserLogin(BaseModel):
+    login_id: str
+    password: str
+
+@app.post("/api/auth/signup")
+def auth_signup(user: UserSignup):
+    # Hash password
+    hashed_password = hashlib.sha256(user.password.encode('utf-8')).hexdigest()
+    
+    conn = sqlite3.connect(USER_DB_FILE)
+    cursor = conn.cursor()
+    
+    # Check if business_reg_no or email already exists
+    cursor.execute("SELECT id FROM users WHERE business_reg_no = ? OR email = ?", (user.business_reg_no, user.email))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="이미 등록된 사업자번호 또는 이메일입니다.")
+        
+    try:
+        today_str = time.strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            INSERT INTO users (business_reg_no, business_name, representative, email, password, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user.business_reg_no, user.business_name, user.representative, user.email, hashed_password, today_str))
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"회원등록 중 오류가 발생했습니다: {str(e)}")
+        
+    conn.close()
+    return {"status": "success", "message": "회원가입이 성공적으로 완료되었습니다."}
+
+@app.post("/api/auth/login")
+def auth_login(login_data: UserLogin):
+    hashed_password = hashlib.sha256(login_data.password.encode('utf-8')).hexdigest()
+    
+    conn = sqlite3.connect(USER_DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Query by business_reg_no or email to find the user first
+    cursor.execute("""
+        SELECT business_reg_no, business_name, representative, email, password 
+        FROM users 
+        WHERE business_reg_no = ? OR email = ?
+    """, (login_data.login_id, login_data.login_id))
+    
+    user = cursor.fetchone()
+    conn.close()
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="등록되지 않은 아이디(사업자번호)입니다.")
+        
+    if user["password"] != hashed_password:
+        raise HTTPException(status_code=401, detail="비밀번호가 일치하지 않습니다.")
+        
+    user_dict = dict(user)
+    user_dict.pop("password", None)
+    
+    return {
+        "status": "success",
+        "user": user_dict
+    }
+
 @app.get("/")
 def read_root():
     """
@@ -762,6 +864,6 @@ def read_root():
 @app.get("/main.html")
 def read_main():
     """
-    메인 페이지 요청 시 html/main.html 반환
+    메인 페이지 요청 시 /로 리다이렉트
     """
-    return FileResponse(os.path.join(BASE_DIR, "html", "main.html"))
+    return RedirectResponse(url="/")
