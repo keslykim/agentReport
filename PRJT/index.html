@@ -171,6 +171,9 @@
             }
         };
 
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const isStaticDemo = API_BASE === '' && !isLocalhost;
+
         const DEFAULT_MOCK_TRANSACTIONS = [
             { id: 1, date: "2026-06-19", summary: "농협하나로마트 식자재", amount: 450000, type: "expense", category: "business", proof_type: "신용카드" },
             { id: 2, date: "2026-06-18", summary: "구글 마케팅 광고비", amount: 120000, type: "expense", category: "business", proof_type: "신용카드" },
@@ -370,10 +373,7 @@
 
                 const total_revenue = incomes_sum > 0 ? incomes_sum : 124500000;
 
-                let estimated_vat = 0;
-                if (total_revenue >= 104000000) {
-                    estimated_vat = Math.max(0, Math.round(total_revenue * 0.1 - valid_expenses * 0.1));
-                }
+                const estimated_vat = Math.max(0, Math.round(total_revenue * 0.1 - valid_expenses * 0.1));
 
                 const business_income = total_revenue - valid_expenses;
                 let deduction_limit = 2000000;
@@ -553,6 +553,7 @@
 
             const fetchDashboardData = async () => {
                 try {
+                    if (isStaticDemo) throw new Error('Static demo mode: skip API fetch');
                     const res = await fetch(API_BASE + '/api/dashboard');
                     if (!res.ok) throw new Error('API status error');
                     const data = await safeParseJson(res);
@@ -567,6 +568,7 @@
 
             const fetchTransactions = async () => {
                 try {
+                    if (isStaticDemo) throw new Error('Static demo mode: skip API fetch');
                     const res = await fetch(API_BASE + '/api/transactions');
                     if (!res.ok) throw new Error('API status error');
                     const data = await safeParseJson(res);
@@ -677,6 +679,7 @@
             const handleConnectAccounts = async () => {
                 setIsConnecting(true);
                 try {
+                    if (isStaticDemo) throw new Error('Static demo mode: skip API fetch');
                     const res = await fetch(API_BASE + '/api/connect-accounts', { method: 'POST' });
                     if (!res.ok) throw new Error('API status error');
                     const data = await safeParseJson(res);
