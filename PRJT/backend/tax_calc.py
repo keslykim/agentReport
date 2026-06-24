@@ -31,11 +31,8 @@ def calculate_estimated_tax(data: TaxInputData) -> Dict[str, Any]:
                 warning_msg = f"앗 사장님! {receipt.store_name}에서 쓰신 {receipt.amount:,}원은 적격증빙이 없어서 비용 처리가 어려울 수 있어요. 다음부턴 꼭 현금영수증이나 카드를 써주세요! 😢"
                 seboki_warnings.append(warning_msg)
 
-    # [Rule A] 부가가치세 계산 로직
-    if data.total_revenue < 104000000:
-        estimated_vat = 0
-    else:
-        estimated_vat = max(0, int(data.total_revenue * 0.1 - valid_expenses * 0.1))
+    # [Rule A] 부가가치세 계산 로직 (세율 10% 일괄 적용)
+    estimated_vat = max(0, int(data.total_revenue * 0.1 - valid_expenses * 0.1))
 
     # [Rule C] 노란우산공제 한도 계산 로직
     business_income = data.total_revenue - valid_expenses
