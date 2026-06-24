@@ -206,12 +206,18 @@ def get_dashboard():
     
     tax_result = calculate_estimated_tax(tax_input)
     
-    # 예상 세금: 부가세 + 종합소득세(과세표준 * 10% 단순화 적용)
-    # 데이터가 아예 없다면 초기 시연값 1,245,000원 출력
+    # # 예상 세금: 부가세 + 종합소득세(과세표준 * 10% 단순화 적용)
+    # # 데이터가 아예 없다면 초기 시연값 1,245,000원 출력
+    # if recent_count == 0:
+    #     expected_tax = 0
+    # else:
+    #     expected_tax = tax_result["estimated_vat"] + int(tax_result["taxable_income"] * 0.1)
+
     if recent_count == 0:
-        expected_tax = 0
+       expected_tax = 0
     else:
-        expected_tax = tax_result["estimated_vat"] + int(tax_result["taxable_income"] * 0.1)
+        # 주방(tax_calc.py)에서 만든 완벽한 누진세율 총합 데이터를 그대로 가져옵니다!
+        expected_tax = tax_result["total_estimated_tax"] 
         
     conn.close()
     
