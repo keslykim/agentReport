@@ -104,6 +104,22 @@ function App() {
     const [receiptResults, setReceiptResults] = useState([]);
     const [isUploading, setIsUploading] = useState(false);
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+    const [currentUser, setCurrentUser] = useState(() => {
+        const stored = localStorage.getItem('currentUser');
+        if (stored) {
+            try {
+                return JSON.parse(stored);
+            } catch (e) {
+                console.error("Error parsing currentUser", e);
+            }
+        }
+        return {
+            business_reg_no: '124-45-67890',
+            business_name: '세복상회',
+            representative: '김대표',
+            email: 'ceo@example.com'
+        };
+    });
     const fileInputRef = useRef(null);
 
     const [showLedger, setShowLedger] = useState(false);
@@ -112,9 +128,9 @@ function App() {
     const [filingStep, setFilingStep] = useState(1); // 1: Verify, 2: Info & Calculate, 3: Completed
     const [filingForm, setFilingForm] = useState({
         period: '2026년 1기 부가가치세',
-        businessName: '세복상회',
-        businessRegNo: '123-45-67890',
-        representative: '김대표',
+        businessName: currentUser.business_name || '세복상회',
+        businessRegNo: currentUser.business_reg_no || '124-45-67890',
+        representative: currentUser.representative || '김대표',
     });
     const [isFiling, setIsFiling] = useState(false);
     const [lastFilingResult, setLastFilingResult] = useState(null);
@@ -887,12 +903,13 @@ function App() {
                             {/* Dropdown Menu with slide down transition */}
                             <div className={`absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-outline-variant/60 py-3 z-50 transition-all duration-300 origin-top-right transform ${showProfileDropdown ? 'opacity-100 scale-100 translate-y-0 visible' : 'opacity-0 scale-95 -translate-y-2 invisible pointer-events-none'}`}>
                                 <div className="px-4 py-2.5 border-b border-outline-variant/40 mb-1.5">
-                                    <p className="text-sm font-black text-primary">김대표 사장님</p>
-                                    <p className="text-xs text-outline font-semibold mt-0.5">124-45-67890</p>
+                                    <p className="text-sm font-black text-primary">{currentUser.representative} 사장님</p>
+                                    <p className="text-xs text-outline font-semibold mt-0.5">{currentUser.business_reg_no}</p>
                                 </div>
                                 <button 
                                     onClick={() => {
                                         setShowProfileDropdown(false);
+                                        localStorage.removeItem('currentUser');
                                         window.location.href = '/';
                                     }}
                                     className="w-full text-left px-4 py-3 text-sm font-bold text-error hover:bg-error-container/20 flex items-center gap-2.5 transition-colors cursor-pointer"
