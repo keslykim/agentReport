@@ -906,12 +906,21 @@ function App() {
     };
 
     const handleResultChange = (idx, field, value) => {
-        const updated = [...receiptResults];
-        updated[idx] = {
-            ...updated[idx],
-            [field]: value
-        };
-        setReceiptResults(updated);
+        setReceiptResults(prev => {
+            const updated = [...prev];
+            if (typeof field === 'object' && field !== null) {
+                updated[idx] = {
+                    ...updated[idx],
+                    ...field
+                };
+            } else {
+                updated[idx] = {
+                    ...updated[idx],
+                    [field]: value
+                };
+            }
+            return updated;
+        });
     };
 
     const handleQnaSubmit = async (e) => {
@@ -2073,8 +2082,10 @@ function App() {
                                                 value={result.category}
                                                 onChange={(e) => {
                                                     const cat = e.target.value;
-                                                    handleResultChange(idx, 'category', cat);
-                                                    handleResultChange(idx, 'category_kr', cat === 'business' ? '사업용 (절세 대상)' : '개인용 (공제 제외)');
+                                                    handleResultChange(idx, {
+                                                        category: cat,
+                                                        category_kr: cat === 'business' ? '사업용 (절세 대상)' : '개인용 (공제 제외)'
+                                                    });
                                                 }}
                                                 className="bg-white border-2 border-outline-variant rounded-lg px-2 py-1 text-xs font-bold text-on-surface focus:outline-none focus:border-primary"
                                             >
