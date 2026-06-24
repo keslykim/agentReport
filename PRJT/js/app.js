@@ -87,6 +87,16 @@ const qnaData = [
 
 const { useState, useEffect, useRef } = React;
 
+const safeParseJson = async (res) => {
+    try {
+        const text = await res.text();
+        return text ? JSON.parse(text) : {};
+    } catch (e) {
+        console.warn("JSON parsing failed, returning empty object", e);
+        return {};
+    }
+};
+
 function App() {
     const [dashboard, setDashboard] = useState({
         expected_tax: 0,
@@ -362,7 +372,7 @@ function App() {
                 body: JSON.stringify({ message: userMsg })
             });
             if (!res.ok) throw new Error('API status error');
-            const data = await res.json();
+            const data = await safeParseJson(res);
             setChatMessages(prev => [...prev, { sender: 'seboki', text: data.answer }]);
         } catch (err) {
             console.warn("챗봇 API 호출 실패, 로컬 챗봇으로 폴백합니다:", err);
@@ -377,7 +387,7 @@ function App() {
         try {
             const res = await fetch('/api/dashboard');
             if (!res.ok) throw new Error('API status error');
-            const data = await res.json();
+            const data = await safeParseJson(res);
             setDashboard(data);
         } catch (err) {
             console.warn("대시보드 데이터 조회 실패, 로컬 데이터로 폴백합니다:", err);
@@ -391,7 +401,7 @@ function App() {
         try {
             const res = await fetch('/api/transactions');
             if (!res.ok) throw new Error('API status error');
-            const data = await res.json();
+            const data = await safeParseJson(res);
             setTransactions(data);
         } catch (err) {
             console.warn("거래 내역 조회 실패, 로컬 데이터로 폴백합니다:", err);
@@ -403,7 +413,7 @@ function App() {
         try {
             const res = await fetch('/api/tax-filings');
             if (!res.ok) throw new Error('API status error');
-            const data = await res.json();
+            const data = await safeParseJson(res);
             setFilings(data);
         } catch (err) {
             console.warn("세금 신고 이력 조회 실패, 로컬 데이터로 폴백합니다:", err);
@@ -435,7 +445,7 @@ function App() {
                 body: JSON.stringify(filingData)
             });
             if (!res.ok) throw new Error('API status error');
-            const data = await res.json();
+            const data = await safeParseJson(res);
             if (data.status === 'success') {
                 setLastFilingResult({
                     receiptNo: `TX-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -498,7 +508,7 @@ function App() {
         try {
             const res = await fetch('/api/connect-accounts', { method: 'POST' });
             if (!res.ok) throw new Error('API status error');
-            const data = await res.json();
+            const data = await safeParseJson(res);
             if (data.status === 'success') {
                 await fetchDashboardData();
                 await fetchTransactions();
@@ -540,7 +550,7 @@ function App() {
                 method: 'DELETE'
             });
             if (!res.ok) throw new Error('API status error');
-            const data = await res.json();
+            const data = await safeParseJson(res);
             if (data.status === 'success') {
                 await fetchDashboardData();
                 await fetchTransactions();
@@ -682,7 +692,7 @@ function App() {
                 body: formData
             });
             if (!res.ok) throw new Error('API status error');
-            const data = await res.json();
+            const data = await safeParseJson(res);
             if (data.status === 'success') {
                 setReceiptResults(data.results);
                 setIsUploading(false);
@@ -788,7 +798,7 @@ function App() {
                 body: JSON.stringify(formatted)
             });
             if (!res.ok) throw new Error('API status error');
-            const data = await res.json();
+            const data = await safeParseJson(res);
             if (data.status === 'success') {
                 await fetchDashboardData();
                 await fetchTransactions();
