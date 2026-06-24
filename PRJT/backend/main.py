@@ -264,7 +264,9 @@ def connect_accounts():
     cursor.execute("SELECT count(*) FROM transactions")
     count = cursor.fetchone()[0]
     
-    if count == 0:
+    # 기존 데이터가 20건 미만인 경우(예: 이전 14건 데모 데이터 잔존 시) 초기화 후 20건으로 재생성
+    if count < 20:
+        cursor.execute("DELETE FROM transactions")
         mock_data = [
             ("2026-06-19", "농협하나로마트 식자재", 450000, "expense", "business", "신용카드"),
             ("2026-06-18", "구글 마케팅 광고비", 120000, "expense", "business", "신용카드"),
