@@ -32,3 +32,62 @@ body {
 .transition-all-custom {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* 프린트 시 접수증만 한 페이지에 출력되도록 설정 */
+@media print {
+    /* .no-print 클래스가 지정된 요소 완전히 숨기기 */
+    .no-print {
+        display: none !important;
+    }
+
+    /* 화면의 다른 모든 기본 레이아웃 요소 숨기기 */
+    header, footer, nav, button, .fixed {
+        display: none !important;
+    }
+
+    /* 높이 및 배경 리셋하여 빈 페이지 유발 차단 */
+    html, body, #root, #root > div {
+        height: auto !important;
+        min-height: 0 !important;
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* 접수증만 정상 레이아웃(relative)으로 배치하여 중앙 정렬 및 단일 페이지 강제 */
+    #print-receipt-section {
+        display: block !important;
+        position: relative !important;
+        margin: 20mm auto !important;
+        top: 0 !important;
+        left: 0 !important;
+        transform: none !important;
+        width: 150mm !important;
+        max-width: 95% !important;
+        border: 2px double #003466 !important;
+        box-shadow: none !important;
+        background: white !important;
+        padding: 24px !important;
+        page-break-inside: avoid;
+    }
+
+    /* 접수증 상위 컨테이너의 테두리, 그림자, 패딩 제거하여 접수증 박스만 깨끗하게 출력 */
+    #root,
+    main,
+    section,
+    div.bg-surface-container-lowest,
+    div.shadow-md,
+    div.border {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* 브라우저 기본 헤더/푸터 출력 여백 마진 제거 */
+    @page {
+        size: A4;
+        margin: 0;
+    }
+}
