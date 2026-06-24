@@ -775,6 +775,7 @@
 
                 // 2. Amount extraction
                 lines.forEach((line, idx) => {
+                    if (line.includes("*")) return;
                     if (/\d{3}-\d{2}-\d{5}/.test(line) || line.includes("등록번호")) return;
                     if (/\d{2,4}-\d{3,4}-\d{4}/.test(line) || line.includes("전화") || line.includes("Tel") || line.includes("T.")) return;
                     if (/\d{4}[-/.]\d{2}[-/.]\d{2}/.test(line) || line.includes("대표자")) return;
@@ -783,7 +784,9 @@
                     const numbers = line.match(/\d[\d,.\s]*\d|\d/g);
                     if (numbers) {
                         numbers.forEach(num_str => {
-                            const clean_num = parseInt(num_str.replace(/[^\d]/g, ''));
+                            const digits_only = num_str.replace(/[^\d]/g, '');
+                            if (digits_only.startsWith('0')) return;
+                            const clean_num = parseInt(digits_only);
                             if (clean_num >= 100 && clean_num <= 10000000) {
                                 let weight = 0;
                                 if (total_keywords.some(k => line.toLowerCase().includes(k))) {
@@ -808,6 +811,16 @@
                 });
 
                 if (potential_amounts.length > 0) {
+                    // Count frequencies
+                    const freqMap = {};
+                    potential_amounts.forEach(item => {
+                        freqMap[item.amount] = (freqMap[item.amount] || 0) + 1;
+                    });
+                    
+                    potential_amounts.forEach(item => {
+                        item.weight += (freqMap[item.amount] - 1) * 50;
+                    });
+
                     potential_amounts.sort((a, b) => {
                         if (b.weight !== a.weight) return b.weight - a.weight;
                         return b.amount - a.amount;
@@ -833,7 +846,7 @@
 
                 // Priority 2: Common store name suffixes (first 8 lines)
                 if (!summary) {
-                    const store_keywords = ["마트", "식당", "푸드", "커피", "카페", "제과", "헤어", "의원", "약국", "편의점", "코리아", "상사", "유통", "갈비", "한우", "피자", "치킨", "스토어", "올리브영", "다이소", "이마트", "홈플러스", "롯데마트", "CU", "GS25", "세븐일레븐"];
+                    const store_keywords = ["농협", "하나로마트", "축협", "수협", "신협", "이마트24", "마트", "식당", "푸드", "커피", "카페", "제과", "헤어", "의원", "약국", "편의점", "코리아", "상사", "유통", "갈비", "한우", "피자", "치킨", "스토어", "올리브영", "다이소", "이마트", "홈플러스", "롯데마트", "CU", "GS25", "세븐일레븐"];
                     for (let line of lines.slice(0, 8)) {
                         if (store_keywords.some(k => line.toUpperCase().includes(k.toUpperCase()))) {
                             if (!["전화", "대표", "등록번호", "일자", "주소"].some(k => line.includes(k))) {
@@ -862,13 +875,22 @@
 
                         let cleaned = line.replace(/[\(\[\{].*?[\)\]\}]/g, '').trim();
                         cleaned = cleaned.replace(/주식회사/g, '').trim();
-                        if (cleaned.length >= 2) {
+                        if (cleaned.length >= 2 && /[가-힣]/.test(cleaned)) {
                             store_candidates.push(cleaned);
                         }
                     }
                     if (store_candidates.length > 0) {
                         summary = store_candidates[0];
                     }
+                }
+
+                if (summary) {
+                    if ((summary.toLowerCase().includes("fad") || summary.toLowerCase() === "fad") && (text.toLowerCase().includes("nonghyup") || text.includes("농협"))) {
+                        summary = summary.replace(/FAD/i, "농협");
+                    }
+                }
+                if (!summary && (text.toLowerCase().includes("nonghyup") || text.includes("농협"))) {
+                    summary = "농협";
                 }
 
                 return { summary, amount, date };
