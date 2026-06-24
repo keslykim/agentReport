@@ -21,11 +21,7 @@ def calculate_estimated_tax(data: TaxInputData) -> Dict[str, Any]:
     valid_expenses = 0
     seboki_warnings = []
     
-    # [Rule B] 필요경비 분석 및 세복이 경고 생성 로직 작성
-    # 지출 내역 중 '증빙 종류(proof_type)'가 '세금계산서', '계산서', '신용카드', '현금영수증'인 경우에만 
-    # 정상적인 '적격증빙'으로 보아 필요경비에 100% 합산합니다.
-    # [중요] 세복이 경고 시스템: 만약 지출 건 중 증빙 종류가 '간이영수증'이거나 '증빙없음'인데 
-    # 금액이 30,000원을 초과한다면, 비용 처리가 부인될 위험이 있습니다.
+    # [Rule B] 필요경비 분석 및 세복이 경고 생성 로직
     for receipt in data.receipts:
         pt = receipt.proof_type.strip() if receipt.proof_type else "증빙없음"
         if pt in ["세금계산서", "계산서", "신용카드", "현금영수증"]:
@@ -35,18 +31,13 @@ def calculate_estimated_tax(data: TaxInputData) -> Dict[str, Any]:
                 warning_msg = f"앗 사장님! {receipt.store_name}에서 쓰신 {receipt.amount:,}원은 적격증빙이 없어서 비용 처리가 어려울 수 있어요. 다음부턴 꼭 현금영수증이나 카드를 써주세요! 😢"
                 seboki_warnings.append(warning_msg)
 
-    # [Rule A] 부가가치세 계산 로직 작성
-    # 2026년 기준, 연 매출 1억 400만 원 미만은 '간이과세자', 그 이상은 '일반과세자'로 분류합니다.
-    # 일반과세자의 부가세는 (매출액 * 10%) - (적격증빙 매입액 * 10%)로 단순 계산합니다. (MVP 버전 기준)
+    # [Rule A] 부가가치세 계산 로직
     if data.total_revenue < 104000000:
         estimated_vat = 0
     else:
-        # 일반과세자의 부가세 = (매출액 * 10%) - (적격증빙 매입액 * 10%)
-        # 적격증빙 매입액은 valid_expenses 입니다.
         estimated_vat = max(0, int(data.total_revenue * 0.1 - valid_expenses * 0.1))
 
-    # [Rule C] 노란우산공제 한도 계산 로직 작성
-    # 사업소득금액 = 매출 - 필요경비
+    # [Rule C] 노란우산공제 한도 계산 로직
     business_income = data.total_revenue - valid_expenses
     
     if business_income <= 40000000:
@@ -58,14 +49,30 @@ def calculate_estimated_tax(data: TaxInputData) -> Dict[str, Any]:
         
     yellow_umbrella_deduction = min(data.yellow_umbrella_paid, deduction_limit)
 
-    # 최종 종합소득세 과세표준 로직 작성
     # 과세표준 = 사업소득금액 - 노란우산공제 기납입액(한도 적용)
     taxable_income = max(0, business_income - yellow_umbrella_deduction)
 
-    # 최종 결과 반환 형식
+    # 💡 [NEW] 종합소득세 산출 (국세청 누진세율 및 누진공제액 적용)
+    if taxable_income <= 14000000:
+        income_tax = taxable_income * 0.06
+    elif taxable_income <= 50000000:
+        income_tax = taxable_income * 0.15 - 1260000
+    elif taxable_income <= 88000000:
+        income_tax = taxable_income * 0.24 - 5760000
+    elif taxable_income <= 150000000:
+        income_tax = taxable_income * 0.35 - 15440000
+    else:
+        income_tax = taxable_income * 0.38 - 19940000 # 3억 이하 구간 적용
+        
+    income_tax = max(0, int(income_tax))
+
+    # 💡 [NEW] 최종 결과 반환 형식 (프론트엔드 모달창에서 쓸 데이터들 추가)
     return {
-        "estimated_vat": estimated_vat,
-        "valid_expenses_total": valid_expenses,
-        "taxable_income": taxable_income,
-        "seboki_warnings": seboki_warnings # 프론트엔드로 전달됨
+        "total_revenue": data.total_revenue,               # 전체 매출액
+        "valid_expenses_total": valid_expenses,            # 적격증빙 총액
+        "estimated_vat": estimated_vat,                    # 예상 부가가치세
+        "taxable_income": taxable_income,                  # 예상 과세표준
+        "income_tax": income_tax,                          # 예상 종합소득세
+        "total_estimated_tax": estimated_vat + income_tax, # 총 예상 세금 합계
+        "seboki_warnings": seboki_warnings                 # 세복이 경고 메시지
     }
